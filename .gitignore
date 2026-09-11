@@ -1,0 +1,13 @@
+# OS clutter
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Packaged builds (share zips are made from this folder, not stored in it)
+*.zip
+*.crx
+*.pem
+
+# Editors
+.vscode/
+.idea/

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fantasy Sweat</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo">FS</span>
+      <div>
+        <div class="title">Fantasy Sweat</div>
+        <div class="sub" id="sub">Who to cheer, who to boo</div>
+      </div>
+    </div>
+    <div class="controls">
+      <select id="week" title="Week"></select>
+      <button id="refresh" title="Refresh">&#x21bb;</button>
+      <button id="popout" title="Pop out into its own window">&#x29C9;</button>
+      <button id="expand" title="Open in a full tab">&#x2197;</button>
+      <button id="settings" title="Change username">&#x2699;</button>
+    </div>
+  </header>
+
+  <form id="setup" class="setup" hidden>
+    <label for="username">Sleeper username</label>
+    <input id="username" autocomplete="off" spellcheck="false" placeholder="e.g. Rakii" maxlength="30"
+           pattern="[A-Za-z0-9_]+" title="Letters, numbers and underscores only" required>
+    <div id="userHint" class="hint" hidden></div>
+    <div id="nickSection" hidden>
+      <div class="setup-h">League nicknames <span>— shown on player tags; leave blank for initials</span></div>
+      <div id="nicks"></div>
+    </div>
+    <div class="row actions">
+      <button type="button" id="cancelSetup" class="ghost" hidden>Cancel</button>
+      <button type="submit" class="primary">Save</button>
+    </div>
+  </form>
+
+  <div id="status" class="status" hidden></div>
+
+  <main id="app" hidden>
+    <section id="leagues" class="leagues"></section>
+    <div id="mustwatch" class="mustwatch" hidden></div>
+    <nav class="tabs">
+      <button data-view="games" class="on">By game</button>
+      <button data-view="players">By player</button>
+      <button data-view="teams">By NFL team</button>
+      <button data-view="plays">Live plays</button>
+    </nav>
+    <div class="filter">
+      <label for="window">Show</label>
+      <select id="window" title="Filter by kickoff time"></select>
+      <button id="leagueChip" class="lchip" title="Show all leagues again" hidden></button>
+    </div>
+    <section id="view"></section>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>
