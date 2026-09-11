@@ -101,7 +101,10 @@ async function getSeasonRanks(season, seasonType) {
   if (rankCache?.key === key && Date.now() - rankCache.t < 10 * 60_000) return rankCache.map;
   const arr = await getJSON(`${STATS}/${season}?season_type=${seasonType}&${POS_QS}`);
   const map = {};
-  for (const r of arr || []) if (r.stats?.pos_rank_ppr) map[r.player_id] = r.stats.pos_rank_ppr;
+  for (const r of arr || []) {
+    const rank = r.stats?.pos_rank_ppr;
+    if (rank && rank < 999) map[r.player_id] = rank; // 999 = unranked (mostly K/DEF)
+  }
   rankCache = { key, t: Date.now(), map };
   return map;
 }
@@ -264,7 +267,8 @@ async function loadAll(username, weekOverride) {
   let ranks = { map: seasonRanks || {}, season: !!seasonRanks };
   if (!seasonRanks) {
     for (const [pid, p] of Object.entries(proj)) {
-      if (p.stats?.pos_adp_dd_ppr) ranks.map[pid] = Math.round(p.stats.pos_adp_dd_ppr);
+      const r = p.stats?.pos_adp_dd_ppr;
+      if (r && r < 999) ranks.map[pid] = Math.round(r); // 999 = unranked (mostly K/DEF)
     }
   }
 
@@ -442,19 +446,30 @@ function leagueCard(ld) {
     s.name, s.custom && s.user ? h('span', { class: 'un' }, ` (${s.user})`) : null);
   const standing = (s) => h('div', { class: 'rec' }, s.record, s.place ? ` · ${ordinal(s.place)} of ${s.of}` : '');
   const id = ld.league.league_id;
-  const toggle = () => {
-    selectedLeague = selectedLeague === id ? null : id;
-    store.set('league', selectedLeague);
+  const picked = selectedLeagues.includes(id);
+  const toggle = (e) => {
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      // Shift/Ctrl+click: add or remove this league, keep the others.
+      selectedLeagues = picked ? selectedLeagues.filter((x) => x !== id) : [...selectedLeagues, id];
+    } else {
+      // Plain click: just this league — or back to all if it's already the only one.
+      selectedLeagues = picked && selectedLeagues.length === 1 ? [] : [id];
+    }
+    store.set('leagues', selectedLeagues);
     render();
   };
+  const title = picked && selectedLeagues.length === 1 ? 'Click to show all leagues again · Shift+click another league to add it'
+    : picked ? 'Click to show only this league · Shift+click to remove it'
+    : 'Click to show only this league · Shift+click to add it';
   return h('div', {
-    class: `lg clickable ${selectedLeague === id ? 'sel' : selectedLeague ? 'dim' : ''}`,
+    class: `lg clickable ${picked ? 'sel' : selectedLeagues.length ? 'dim' : ''}`,
     style: `--lc:${ld.color}`,
     role: 'button',
     tabindex: '0',
-    title: selectedLeague === id ? 'Click to show all leagues again' : 'Click to show only this league',
+    title,
+    onmousedown: (e) => { if (e.shiftKey) e.preventDefault(); }, // no text highlighting on shift+click
     onclick: toggle,
-    onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } },
+    onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(e); } },
   },
     h('div', { class: 'lg-head' },
       h('span', { class: 'lg-name' }, ld.league.name),
@@ -861,16 +876,17 @@ let view = 'games';
 let filter = 'all';        // what the user picked (remembered)
 let activeFilter = 'all';  // what's applied — falls back to 'all' if that window isn't in this week
 let windowsByKey = {};
-let selectedLeague = null; // league_id when a league card is clicked
+let selectedLeagues = [];  // league_ids picked on the cards (empty = all leagues)
 let nicknames = {};        // league_id → short name shown on player tags
 let refreshTimer = null;
 
-// Re-run the cheer/boo math using only one league's matchup; drops games with nothing at stake there.
-function scopeToLeague(model, leagueId) {
-  if (!leagueId) return model;
+// Re-run the cheer/boo math using only the picked leagues' matchups; drops games with nothing at stake there.
+function scopeToLeague(model, leagueIds) {
+  if (!leagueIds?.length) return model;
+  const keep = new Set(leagueIds);
   const scoped = new Map();
   for (const pl of model.players) {
-    const legs = pl.legs.filter((l) => l.ld.league.league_id === leagueId);
+    const legs = pl.legs.filter((l) => keep.has(l.ld.league.league_id));
     if (!legs.length) continue;
     const net = legs.reduce((s, l) => s + l.side, 0);
     scoped.set(pl.pid, {
@@ -968,17 +984,21 @@ function render() {
   const { model, week, user } = current;
   const anyLive = model.games.some((g) => g.state === 'in');
   $('#sub').textContent = `@${user.display_name} · Week ${week} · updated ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${anyLive ? ' · LIVE' : ''}`;
-  const picked = selectedLeague && model.leagues.find((ld) => ld.opp && ld.league.league_id === selectedLeague);
-  if (!picked) selectedLeague = null; // e.g. that league has no matchup this week
-  const scoped = scopeToLeague(model, selectedLeague);
+  // Keep only picks that have a matchup this week; picking every league is the same as no filter.
+  const selectable = model.leagues.filter((ld) => ld.opp);
+  const picked = selectable.filter((ld) => selectedLeagues.includes(ld.league.league_id));
+  selectedLeagues = picked.length && picked.length < selectable.length ? picked.map((ld) => ld.league.league_id) : [];
+  const scoped = scopeToLeague(model, selectedLeagues);
 
   $('#leagues').replaceChildren(...model.leagues.map(leagueCard));
   if (!model.leagues.length) $('#leagues').replaceChildren(h('div', { class: 'status' }, 'No active leagues found for this season.'));
   const chip = $('#leagueChip');
-  chip.hidden = !picked;
-  if (picked) {
-    chip.textContent = `Only ${picked.league.name} ✕`;
-    chip.style.setProperty('--lc', picked.color);
+  chip.hidden = !selectedLeagues.length;
+  if (selectedLeagues.length) {
+    chip.textContent = picked.length === 1
+      ? `Only ${picked[0].league.name} ✕`
+      : `Only ${picked.map((ld) => leagueTag(ld.league)).join(' + ')} ✕`;
+    chip.style.setProperty('--lc', picked.length === 1 ? picked[0].color : 'var(--accent)');
   }
   fillFilter(model, scoped);
   renderMustWatch(scoped);
@@ -1157,11 +1177,13 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   }
   view = (await store.get('view')) || 'games';
   filter = (await store.get('filter')) || 'all';
-  selectedLeague = (await store.get('league')) || null;
+  const savedLeagues = await store.get('leagues');
+  const oldPick = await store.get('league'); // single pick saved by older versions
+  selectedLeagues = Array.isArray(savedLeagues) ? savedLeagues : oldPick ? [oldPick] : [];
   nicknames = (await store.get('nicknames')) || {};
   $('#leagueChip').addEventListener('click', () => {
-    selectedLeague = null;
-    store.set('league', null);
+    selectedLeagues = [];
+    store.set('leagues', []);
     render();
   });
   $('#window').addEventListener('change', (e) => {

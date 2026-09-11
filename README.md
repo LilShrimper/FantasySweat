@@ -4,7 +4,7 @@ A Chrome extension that pulls your Sleeper fantasy football matchups and tells y
 
 ## Features
 
-- **League cards**: your score vs your opponent's in every league, with projected totals, win % (Sleeper's own formula, including in-game projections), records and standings. Click a card to show only that league.
+- **League cards**: your score vs your opponent's in every league, with projected totals, win % (Sleeper's own formula, including in-game projections), records and standings. Click a card to show only that league; Shift+click (or Ctrl+click) to pick several.
 - **By game / By player / By NFL team**: every starter sorted into *cheer for* or *root against*. Players you start in one league who face you in another are marked "Both sides".
 - **Live plays**: the latest fantasy-scoring plays for you and against you from games in progress, with each play's points under each league's scoring.
 - **Filters**: by kickoff window (e.g. Sun 1:00 PM), live now, or still to play.
