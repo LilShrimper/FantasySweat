@@ -88,7 +88,7 @@ button, select, input { font: inherit; color: inherit; }
 .setup-h { margin: 14px 0 6px; font-weight: 700; font-size: 12px; }
 .setup-h span { font-weight: 400; color: var(--muted); }
 .nick-row {
-  display: grid; grid-template-columns: 1fr 110px auto; align-items: center; gap: 8px;
+  display: grid; grid-template-columns: 1fr 110px 100px auto; align-items: center; gap: 8px;
   padding: 4px 0 4px 8px; margin-bottom: 4px; border-left: 3px solid var(--lc);
 }
 .nick-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -97,6 +97,13 @@ button, select, input { font: inherit; color: inherit; }
 .setup .nick-row label.nick-name { display: flex; align-items: center; gap: 7px; margin: 0; color: var(--text); cursor: pointer; }
 .nick-row .nm { overflow: hidden; text-overflow: ellipsis; }
 .setup input[type="checkbox"] { flex: none; margin: 0; padding: 0; accent-color: var(--lc, var(--accent)); cursor: pointer; }
+/* League color: the tag preview is the picker (an invisible color input over it); ↺ only when changed */
+.lcolor-pick { position: relative; display: inline-flex; justify-self: start; max-width: 100%; border-radius: 5px; cursor: pointer; }
+.lcolor-pick .chip { min-width: 0; overflow: hidden; white-space: nowrap; } /* a very wide tag clips instead of spilling into ↺ */
+.lcolor-pick:hover .chip, .lcolor-pick:focus-within .chip { outline: 1px solid var(--lc); outline-offset: 2px; }
+.nick-row input.lcolor { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+.lreset { padding: 2px 5px; font-size: 13px; line-height: 1; }
+.lreset.gone { visibility: hidden; }
 /* Team nicknames, folded under each league */
 .team-nicks { margin: -2px 0 8px 11px; }
 .team-nicks summary { cursor: pointer; color: var(--muted); font-size: 11.5px; padding: 2px 0; }
