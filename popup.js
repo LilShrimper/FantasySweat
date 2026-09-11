@@ -1472,9 +1472,25 @@ $('#week').addEventListener('change', (e) => {
 const isExtension = typeof chrome !== 'undefined' && !!chrome.runtime?.getURL;
 const pageURL = (query) => (isExtension ? chrome.runtime.getURL(`popup.html?${query}`) : `${location.pathname}?${query}`);
 
-$('#expand').addEventListener('click', () => {
-  if (isExtension && chrome.tabs?.create) chrome.tabs.create({ url: pageURL('full=1') });
-  else window.open(pageURL('full=1'), '_blank');
+// Full-tab view: bring back the one that's already open (found by its page), or open it. From the
+// popout this is "Back to tab", which also closes the popout, so clicks can't pile up new tabs.
+$('#expand').addEventListener('click', async () => {
+  const url = pageURL('full=1');
+  if (!isExtension || !chrome.tabs?.create) {
+    window.open(url, 'fantasy-sweat-full'); // named, so the same tab is reused
+  } else {
+    let open = null;
+    try {
+      [open] = await chrome.runtime.getContexts({ contextTypes: ['TAB'], documentUrls: [url] });
+    } catch { /* couldn't check — open a new one */ }
+    if (open) {
+      await chrome.tabs.update(open.tabId, { active: true });
+      await chrome.windows.update(open.windowId, { focused: true });
+    } else {
+      await chrome.tabs.create({ url });
+    }
+  }
+  if (MODE !== 'full') window.close();
 });
 
 // Pop out into a standalone window; re-focuses the existing one instead of opening duplicates.
@@ -1517,6 +1533,8 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   if (MODE === 'window') {
     document.body.classList.add('win');
     $('#popout').hidden = true;
+    $('#expand').textContent = '↩ Back to tab';
+    $('#expand').title = 'Close this window and go back to the full tab';
     // Remember the popout's size/position for next time.
     const saveBounds = () => store.set('popoutBounds', { width: outerWidth, height: outerHeight, left: screenX, top: screenY });
     let t;
