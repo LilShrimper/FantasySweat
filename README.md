@@ -43,6 +43,20 @@ popup.js        Data loading, cheer/boo logic, win %, live plays, rendering
 icons/          Toolbar and store icons
 ```
 
+## Publishing to the Chrome Web Store
+
+Updates go out automatically through GitHub Actions (`.github/workflows/publish.yml`):
+
+1. Make your changes and bump `"version"` in `manifest.json` (e.g. `1.0.0` → `1.0.1`). The store rejects an upload that reuses a version number.
+2. Push to `main`. When the version went up, the workflow zips the extension, uploads it and submits it for review. Commits that don't change the version are skipped.
+3. After Google's review, Chrome updates everyone's installed copy on its own.
+
+You can also run it by hand from the repo's **Actions** tab (**Publish to Chrome Web Store → Run workflow**).
+
+The workflow needs these repository secrets (**Settings → Secrets and variables → Actions**): `EXTENSION_ID`, `PUBLISHER_ID`, `CLIENT_ID`, `CLIENT_SECRET`, `REFRESH_TOKEN`. See [chrome-webstore-upload-keys](https://github.com/fregante/chrome-webstore-upload-keys) for how to create them. The very first version has to be uploaded by hand in the [Developer Dashboard](https://chrome.google.com/webstore/devconsole).
+
+Privacy policy: [PRIVACY.md](PRIVACY.md).
+
 ## Sharing
 
 Zip this folder (excluding `.git`) and have the other person load it unpacked, as described in **Install**.

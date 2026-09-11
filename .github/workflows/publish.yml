@@ -1,0 +1,60 @@
+name: Publish to Chrome Web Store
+
+# Runs when manifest.json changes on main, and only uploads if its "version" actually went up —
+# ordinary commits (README edits, etc.) never send anything to the store. The store keys live in
+# this repo's Actions secrets: EXTENSION_ID, PUBLISHER_ID, CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN.
+on:
+  push:
+    branches: [main]
+    paths: [manifest.json]
+  workflow_dispatch: # "Run workflow" button — publishes the current version without the version check
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chrome-web-store
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need the previous commit to compare versions
+
+      - name: Did the version change?
+        id: version
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          now=$(jq -r .version manifest.json)
+          before=$(git show "$BEFORE_SHA:manifest.json" 2>/dev/null | jq -r .version 2>/dev/null || true)
+          if [ "$EVENT" = "workflow_dispatch" ] || [ "$now" != "$before" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "Publishing version $now (previous: ${before:-none})"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Version unchanged ($now) — nothing to publish"
+          fi
+
+      - name: Build the store zip
+        if: steps.version.outputs.publish == 'true'
+        run: zip -r extension.zip manifest.json popup.html popup.css popup.js icons
+
+      - uses: actions/setup-node@v4
+        if: steps.version.outputs.publish == 'true'
+        with:
+          node-version: 22
+
+      - name: Upload and publish
+        if: steps.version.outputs.publish == 'true'
+        run: npx --yes chrome-webstore-upload-cli@4.0.1 --source extension.zip
+        env:
+          EXTENSION_ID: ${{ secrets.EXTENSION_ID }}
+          PUBLISHER_ID: ${{ secrets.PUBLISHER_ID }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
