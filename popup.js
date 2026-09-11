@@ -1304,7 +1304,7 @@ async function showSetup() {
   const saved = cleanUsername(await store.get('username'));
   $('#username').value = saved;
   $('#userHint').hidden = true;
-  $('#cancelSetup').hidden = !saved || !current;
+  $('#cancelSetup').hidden = !current; // nothing to go back to on first run (ESPN-only users included)
 
   // One row per league (once leagues have loaded): show/hide, its tag, and — folded away —
   // a nickname box for every team in it.
@@ -1426,7 +1426,7 @@ $('#setup').addEventListener('submit', async (e) => {
   document.querySelectorAll('#nicks .show').forEach((c) => (c.checked ? hidden.delete(c.dataset.id) : hidden.add(c.dataset.id)));
   hiddenLeagues = [...hidden];
   await store.set('hiddenLeagues', hiddenLeagues);
-  const userChanged = name !== (await store.get('username'));
+  const userChanged = name !== cleanUsername(await store.get('username')); // none saved reads as ''
   await store.set('username', name);
   hideSetup();
   if (userChanged || espnChanged || !current) {
