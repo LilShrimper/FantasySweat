@@ -113,8 +113,6 @@ async function getPlayerDump() {
       p.number ?? null, p.espn_id ?? null];
   }
   await store.set('playerDump3', { t: Date.now(), map });
-  store.set('playerDump2', null); // older cache formats
-  store.set('playerDump', null);
   return map;
 }
 
@@ -1532,8 +1530,7 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   view = (await store.get('view')) || 'games';
   filter = (await store.get('filter')) || 'all';
   const savedLeagues = await store.get('leagues');
-  const oldPick = await store.get('league'); // single pick saved by older versions
-  selectedLeagues = Array.isArray(savedLeagues) ? savedLeagues : oldPick ? [oldPick] : [];
+  selectedLeagues = Array.isArray(savedLeagues) ? savedLeagues : [];
   nicknames = (await store.get('nicknames')) || {};
   teamNicks = (await store.get('teamNicks')) || {};
   hiddenLeagues = (await store.get('hiddenLeagues')) || [];
