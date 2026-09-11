@@ -1099,7 +1099,9 @@ function playItem(it, side) {
 
 // ---------- app state / wiring ----------
 const params = new URLSearchParams(location.search);
-const MODE = params.has('full') ? 'full' : params.has('window') ? 'window' : 'popup';
+// The full tab is the bare page, so its address is just …/fantasy-sweat.html; the toolbar popup
+// opens with ?popup=1 (set in manifest.json) and the popout with ?window=1.
+const MODE = params.has('popup') ? 'popup' : params.has('window') ? 'window' : 'full';
 let current = null;
 let view = 'games';
 let filter = 'all';        // what the user picked (remembered)
@@ -1470,12 +1472,15 @@ $('#week').addEventListener('change', (e) => {
   refresh();
 });
 const isExtension = typeof chrome !== 'undefined' && !!chrome.runtime?.getURL;
-const pageURL = (query) => (isExtension ? chrome.runtime.getURL(`popup.html?${query}`) : `${location.pathname}?${query}`);
+const pageURL = (query = '') => {
+  const page = query ? `fantasy-sweat.html?${query}` : 'fantasy-sweat.html';
+  return isExtension ? chrome.runtime.getURL(page) : page;
+};
 
 // Full-tab view: bring back the one that's already open (found by its page), or open it. From the
 // popout this is "Back to tab", which also closes the popout, so clicks can't pile up new tabs.
 $('#expand').addEventListener('click', async () => {
-  const url = pageURL('full=1');
+  const url = pageURL();
   if (!isExtension || !chrome.tabs?.create) {
     window.open(url, 'fantasy-sweat-full'); // named, so the same tab is reused
   } else {

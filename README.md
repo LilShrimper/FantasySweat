@@ -36,11 +36,11 @@ The Sleeper Game Center feed and the ESPN scoreboard are unofficial and can chan
 ## Project layout
 
 ```
-manifest.json   Chrome extension manifest (MV3)
-popup.html      Page structure (popup, popout window and full tab all use it)
-popup.css       Styles (dark and light themes)
-popup.js        Data loading, cheer/boo logic, win %, live plays, rendering
-icons/          Toolbar and store icons
+manifest.json        Chrome extension manifest (MV3)
+fantasy-sweat.html   Page structure (popup, popout window and full tab all use it)
+popup.css            Styles (dark and light themes)
+popup.js             Data loading, cheer/boo logic, win %, live plays, rendering
+icons/               Toolbar and store icons
 ```
 
 ## Publishing to the Chrome Web Store
