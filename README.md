@@ -10,7 +10,7 @@ A Chrome extension that pulls your Sleeper and ESPN fantasy football matchups an
 - **Filters**: by kickoff window (e.g. Sun 1:00 PM), live now, or still to play.
 - **Must-watch**: the unfinished game with the most projected fantasy points riding on it.
 - **Live updates**: refreshes every 30 seconds while games are on. Popout window and full-tab views.
-- **Settings**: Sleeper username and a nickname for each league's tag.
+- **Settings**: Sleeper username and ESPN leagues; show or hide each league; a short tag per league for player chips; and nicknames for any fantasy team, shown on the league cards.
 
 ## Install
 

@@ -240,13 +240,18 @@ function espnLeagueData(d, cfg, week, dump, extraInfo) {
     espn: true,
   };
   const teams = d.teams || [];
+  const ownerOf = (t) => (d.members || []).find((mm) => mm.id === t.owners?.[0] || mm.id === t.primaryOwner);
+  // Every team in the league, for team nicknames in Settings.
+  const teamList = teams
+    .map((t) => ({ key: String(t.id), name: espnTeamName(t), user: ownerOf(t)?.displayName || '' }))
+    .sort((a, b) => a.name.localeCompare(b.name));
   const team = teams.find((t) => t.id === Number(cfg.teamId));
-  if (!team) return { league, skip: 'Pick your team in Settings ⚙' };
+  if (!team) return { league, teams: teamList, skip: 'Pick your team in Settings ⚙' };
   const m = (d.schedule || []).find((x) => x.matchupPeriodId === Number(week) && (x.home?.teamId === team.id || x.away?.teamId === team.id));
-  if (!m) return { league, skip: 'No matchup this week' };
+  if (!m) return { league, teams: teamList, skip: 'No matchup this week' };
   const mine = m.home?.teamId === team.id ? m.home : m.away;
   const theirs = m.home?.teamId === team.id ? m.away : m.home;
-  if (!theirs) return { league, skip: 'Bye week (no opponent)' };
+  if (!theirs) return { league, teams: teamList, skip: 'Bye week (no opponent)' };
 
   // Standings: wins (ties = half) first, then points for. No places until a game is final.
   const rec = (t) => t?.record?.overall || {};
@@ -258,7 +263,7 @@ function espnLeagueData(d, cfg, week, dump, extraInfo) {
 
   const side = (s) => {
     const t = teams.find((x) => x.id === s.teamId) || {};
-    const owner = (d.members || []).find((mm) => mm.id === t.owners?.[0] || mm.id === t.primaryOwner);
+    const owner = ownerOf(t);
     const r = rec(t);
     const starters = [], players_points = {}, projMap = {};
     for (const e of s.rosterForCurrentScoringPeriod?.entries || []) {
@@ -277,6 +282,7 @@ function espnLeagueData(d, cfg, week, dump, extraInfo) {
     return {
       m: { starters, players_points, points: s.totalPointsLive ?? s.totalPoints ?? 0 },
       projMap,
+      key: t.id != null ? String(t.id) : null, // for team nicknames
       name: espnTeamName(t),
       user: owner?.displayName || '',
       custom: !!owner?.displayName,
@@ -287,7 +293,7 @@ function espnLeagueData(d, cfg, week, dump, extraInfo) {
       espnWin: s.winProbability,
     };
   };
-  return { league, me: side(mine), opp: side(theirs), skip: null, espnFinal: !!m.winner && m.winner !== 'UNDECIDED' };
+  return { league, teams: teamList, me: side(mine), opp: side(theirs), skip: null, espnFinal: !!m.winner && m.winner !== 'UNDECIDED' };
 }
 
 const normTeam = (abbr) => ({ WSH: 'WAS' })[abbr] || abbr;
@@ -340,15 +346,19 @@ async function loadLeague(league, uid, week) {
     getJSON(`${base}/users`),
     getJSON(`${base}/matchups/${week}`),
   ]);
+  const findUser = (id) => (users || []).find((u) => u.user_id === id);
+  // Every team in the league, for team nicknames in Settings.
+  const teams = (rosters || [])
+    .map((r) => { const u = findUser(r.owner_id); return { key: String(r.roster_id), name: teamName(u), user: u?.display_name || '' }; })
+    .sort((a, b) => a.name.localeCompare(b.name));
   const mine = (rosters || []).find((r) => r.owner_id === uid || (r.co_owners || []).includes(uid));
-  if (!mine) return { league, skip: 'You don’t have a roster here' };
+  if (!mine) return { league, teams, skip: 'You don’t have a roster here' };
   const myM = (matchups || []).find((m) => m.roster_id === mine.roster_id);
-  if (!myM) return { league, skip: 'No matchup this week' };
+  if (!myM) return { league, teams, skip: 'No matchup this week' };
   const oppM = myM.matchup_id != null
     ? matchups.find((m) => m.matchup_id === myM.matchup_id && m.roster_id !== myM.roster_id)
     : null;
   const oppRoster = oppM && rosters.find((r) => r.roster_id === oppM.roster_id);
-  const findUser = (id) => (users || []).find((u) => u.user_id === id);
 
   // Standings: wins (ties = half) first, then points for — Sleeper's default. No places until a game is final.
   const stats = (r) => {
@@ -365,6 +375,7 @@ async function loadLeague(league, uid, week) {
     const s = stats(roster);
     return {
       m,
+      key: roster ? String(roster.roster_id) : null, // for team nicknames
       name: teamName(u),
       user: u?.display_name || '',
       custom: !!u?.metadata?.team_name, // has a team name that isn't just the username
@@ -375,6 +386,7 @@ async function loadLeague(league, uid, week) {
   };
   return {
     league,
+    teams,
     me: side(myM, mine, uid),
     opp: oppM ? side(oppM, oppRoster, oppRoster?.owner_id) : null,
     skip: oppM ? null : 'Bye week (no opponent)',
@@ -615,6 +627,9 @@ const gameWhen = (g) => {
   return g.network && g.state !== 'post' ? `${t} · ${g.network}` : t;
 };
 const leagueTag = (league) => nicknames[league.league_id] || initials(league.name);
+// Team nicknames from Settings, keyed per league so they stick to a team all season.
+const teamNickKey = (ld, key) => `${ld.league.league_id}:${key}`;
+const teamLabel = (ld, s) => (s?.key != null && teamNicks[teamNickKey(ld, s.key)]) || s?.name || '';
 const ordinal = (n) => {
   const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
@@ -633,8 +648,14 @@ function leagueCard(ld) {
   const verdict = ld.final
     ? (me.m.points > opp.m.points ? 'Won' : me.m.points < opp.m.points ? 'Lost' : 'Tied')
     : Math.round(p * 100) === 50 ? 'Toss-up' : p > 0.5 ? 'Projected win' : 'Projected loss';
-  const who = (s) => h('div', { class: 'tn', title: s.custom ? `${s.name} (${s.user})` : s.name },
-    s.name, s.custom && s.user ? h('span', { class: 'un' }, ` (${s.user})`) : null);
+  // A team nickname replaces the name (and username); hovering still shows the real one.
+  const who = (s) => {
+    const label = teamLabel(ld, s);
+    const nick = label !== s.name;
+    const full = s.custom && s.user ? `${s.name} (${s.user})` : s.name;
+    return h('div', { class: 'tn', title: nick ? `${label} · ${full}` : full },
+      label, !nick && s.custom && s.user ? h('span', { class: 'un' }, ` (${s.user})`) : null);
+  };
   const standing = (s) => h('div', { class: 'rec' }, s.record, s.place ? ` · ${ordinal(s.place)} of ${s.of}` : '');
   const id = ld.league.league_id;
   const picked = selectedLeagues.includes(id);
@@ -692,7 +713,7 @@ function playerRow(pl, { showGame = false } = {}) {
   const chips = pl.legs.map((l) => h('span', {
     class: `chip ${l.side > 0 ? 'for' : 'against'}`,
     style: `--lc:${l.ld.color}`,
-    title: `${l.side > 0 ? 'Your starter' : `Started by ${l.ld.opp.name}`} in ${l.ld.league.name}`,
+    title: `${l.side > 0 ? 'Your starter' : `Started by ${teamLabel(l.ld, l.ld.opp)}`} in ${l.ld.league.name}`,
   }, leagueTag(l.ld.league)));
   let gameText = null;
   if (showGame) {
@@ -1052,7 +1073,7 @@ function playItem(it, side) {
         x.legs.map((l) => h('span', {
           class: `chip ${l.leg.side > 0 ? 'for' : 'against'}`,
           style: `--lc:${l.leg.ld.color}`,
-          title: `${l.leg.side > 0 ? 'Your starter' : `Started by ${l.leg.ld.opp.name}`} in ${l.leg.ld.league.name}: ${signed(l.pts)}`,
+          title: `${l.leg.side > 0 ? 'Your starter' : `Started by ${teamLabel(l.leg.ld, l.leg.ld.opp)}`} in ${l.leg.ld.league.name}: ${signed(l.pts)}`,
         }, leagueTag(l.leg.ld.league))));
     }),
     h('div', { class: 'lp-desc' },
@@ -1071,13 +1092,16 @@ let activeFilter = 'all';  // what's applied — falls back to 'all' if that win
 let windowsByKey = {};
 let selectedLeagues = [];  // league_ids picked on the cards (empty = all leagues)
 let nicknames = {};        // league_id → short name shown on player tags
+let teamNicks = {};        // "league_id:team key" → team nickname shown on the league cards
+let hiddenLeagues = [];    // league_ids unchecked in Settings — left out of everything
 let espnLeagues = [];      // [{ id, teamId }] — ESPN leagues from Settings
 let espnDraft = [];        // the same list while Settings is open (saved on Save)
 let refreshTimer = null;
 
 // Re-run the cheer/boo math using only the picked leagues' matchups; drops games with nothing at stake there.
-function scopeToLeague(model, leagueIds) {
-  if (!leagueIds?.length) return model;
+// keepAll (for leagues hidden in Settings): keep every game, so the rest looks just like "all leagues".
+function scopeToLeague(model, leagueIds, { keepAll = false } = {}) {
+  if (!leagueIds?.length && !keepAll) return model;
   const keep = new Set(leagueIds);
   const scoped = new Map();
   for (const pl of model.players) {
@@ -1099,8 +1123,8 @@ function scopeToLeague(model, leagueIds) {
       const players = g.players.map((p) => scoped.get(p.pid)).filter(Boolean);
       return { ...g, players, stake: players.reduce((s, p) => s + Math.abs(p.impact), 0), projStake: projStakeOf(players) };
     })
-    .filter((g) => g.players.length);
-  return { ...model, players: [...scoped.values()], games, leagueScoped: true };
+    .filter((g) => keepAll || g.players.length);
+  return { ...model, players: [...scoped.values()], games, leagueScoped: !keepAll || !!model.leagueScoped };
 }
 
 // ---------- time-window filter ----------
@@ -1176,7 +1200,13 @@ function setStatus(msg, isError = false) {
 
 function render() {
   if (!current) return;
-  const { model, week, user } = current;
+  const { week, user } = current;
+  // Leagues unchecked in Settings drop out of everything; the rest behave as if they were all you had.
+  const full = current.model;
+  const visible = full.leagues.filter((ld) => !hiddenLeagues.includes(ld.league.league_id));
+  const model = visible.length < full.leagues.length
+    ? { ...scopeToLeague(full, visible.map((ld) => ld.league.league_id), { keepAll: true }), leagues: visible }
+    : full;
   const anyLive = model.games.some((g) => g.state === 'in');
   $('#sub').textContent = `${user ? `@${user.display_name} · ` : ''}Week ${week} · updated ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${anyLive ? ' · LIVE' : ''}`;
   // Keep only picks that have a matchup this week; picking every league is the same as no filter.
@@ -1186,7 +1216,11 @@ function render() {
   const scoped = scopeToLeague(model, selectedLeagues);
 
   $('#leagues').replaceChildren(...model.leagues.map(leagueCard));
-  if (!model.leagues.length) $('#leagues').replaceChildren(h('div', { class: 'status' }, 'No active leagues found for this season.'));
+  if (!model.leagues.length) {
+    $('#leagues').replaceChildren(h('div', { class: 'status' }, full.leagues.length
+      ? 'All your leagues are hidden. Turn one back on in Settings ⚙.'
+      : 'No active leagues found for this season.'));
+  }
   const chip = $('#leagueChip');
   chip.hidden = !selectedLeagues.length;
   if (selectedLeagues.length) {
@@ -1258,20 +1292,39 @@ async function showSetup() {
   $('#userHint').hidden = true;
   $('#cancelSetup').hidden = !saved || !current;
 
-  // One nickname box per league (only once leagues have loaded).
-  const leagues = current?.model.leagues.filter((ld) => ld.me) || [];
+  // One row per league (once leagues have loaded): show/hide, its tag, and — folded away —
+  // a nickname box for every team in it.
+  const leagues = current?.model.leagues || [];
   $('#nickSection').hidden = !leagues.length;
   $('#nicks').replaceChildren(...leagues.map((ld) => {
     const id = ld.league.league_id;
     const fallback = initials(ld.league.name);
     const preview = h('span', { class: 'chip for', style: `--lc:${ld.color}` }, leagueTag(ld.league));
     const input = h('input', {
-      class: 'nick', 'data-id': id, maxlength: '10', placeholder: fallback,
+      class: 'nick', 'data-id': id, maxlength: '10', placeholder: fallback, title: 'Tag shown on player chips',
       value: nicknames[id] || '', spellcheck: 'false', autocomplete: 'off',
     });
     input.addEventListener('input', () => { preview.textContent = input.value.trim() || fallback; });
-    return h('label', { class: 'nick-row', style: `--lc:${ld.color}` },
-      h('span', { class: 'nick-name', title: ld.league.name }, ld.league.name), input, preview);
+    const show = h('input', { type: 'checkbox', class: 'show', 'data-id': id });
+    show.checked = !hiddenLeagues.includes(id);
+    const row = h('div', { class: `nick-row ${show.checked ? '' : 'off'}`, style: `--lc:${ld.color}` },
+      h('label', { class: 'nick-name', title: `Show ${ld.league.name}` }, show, h('span', { class: 'nm' }, ld.league.name)),
+      input, preview);
+    show.addEventListener('change', () => row.classList.toggle('off', !show.checked));
+
+    const teams = ld.teams || [];
+    if (!teams.length) return h('div', { class: 'lg-set' }, row);
+    const named = teams.filter((t) => teamNicks[teamNickKey(ld, t.key)]).length;
+    return h('div', { class: 'lg-set' }, row,
+      h('details', { class: 'team-nicks' },
+        h('summary', null, `Team nicknames${named ? ` (${named} set)` : ''}`),
+        teams.map((t) => h('label', { class: 'team-row' },
+          h('span', { class: 'nick-name', title: t.user ? `${t.name} (${t.user})` : t.name },
+            t.name, t.user && t.user !== t.name ? h('span', { class: 'un' }, ` (${t.user})`) : null),
+          h('input', {
+            class: 'tnick', 'data-key': teamNickKey(ld, t.key), maxlength: '24', placeholder: 'Nickname',
+            value: teamNicks[teamNickKey(ld, t.key)] || '', spellcheck: 'false', autocomplete: 'off',
+          })))));
   }));
   // ESPN leagues: one row per league with a "which team is yours" picker.
   espnDraft = espnLeagues.map((l) => ({ ...l }));
@@ -1347,6 +1400,18 @@ $('#setup').addEventListener('submit', async (e) => {
   });
   nicknames = next;
   await store.set('nicknames', nicknames);
+  const nextTeams = { ...teamNicks };
+  document.querySelectorAll('#nicks .tnick').forEach((input) => {
+    const v = input.value.trim();
+    if (v) nextTeams[input.dataset.key] = v;
+    else delete nextTeams[input.dataset.key];
+  });
+  teamNicks = nextTeams;
+  await store.set('teamNicks', teamNicks);
+  const hidden = new Set(hiddenLeagues); // leagues not listed right now keep their setting
+  document.querySelectorAll('#nicks .show').forEach((c) => (c.checked ? hidden.delete(c.dataset.id) : hidden.add(c.dataset.id)));
+  hiddenLeagues = [...hidden];
+  await store.set('hiddenLeagues', hiddenLeagues);
   const userChanged = name !== (await store.get('username'));
   await store.set('username', name);
   hideSetup();
@@ -1354,7 +1419,7 @@ $('#setup').addEventListener('submit', async (e) => {
     current = null;
     refresh();
   } else {
-    render(); // nicknames only — no need to refetch
+    render(); // nicknames / shown leagues only — no need to refetch
   }
 });
 $('#cancelSetup').addEventListener('click', hideSetup);
@@ -1434,6 +1499,8 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   const oldPick = await store.get('league'); // single pick saved by older versions
   selectedLeagues = Array.isArray(savedLeagues) ? savedLeagues : oldPick ? [oldPick] : [];
   nicknames = (await store.get('nicknames')) || {};
+  teamNicks = (await store.get('teamNicks')) || {};
+  hiddenLeagues = (await store.get('hiddenLeagues')) || [];
   espnLeagues = (await store.get('espnLeagues')) || [];
   $('#leagueChip').addEventListener('click', () => {
     selectedLeagues = [];
