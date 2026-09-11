@@ -714,14 +714,17 @@ function injBadge(inj) {
   return h('span', { class: `inj ${code === 'Q' ? 'q' : ''}`, title: inj }, code);
 }
 
+// A league's tag chip for one leg of a player: + if he's your starter there, − if your opponent's.
+const legChip = (leg, extra = '') => h('span', {
+  class: `chip ${leg.side > 0 ? 'for' : 'against'}`,
+  style: `--lc:${leg.ld.color}`,
+  title: `${leg.side > 0 ? 'Your starter' : `Started by ${teamLabel(leg.ld, leg.ld.opp)}`} in ${leg.ld.league.name}${extra}`,
+}, leagueTag(leg.ld.league));
+
 function playerRow(pl, { showGame = false } = {}) {
   const g = pl.game;
   const started = g && g.state !== 'pre';
-  const chips = pl.legs.map((l) => h('span', {
-    class: `chip ${l.side > 0 ? 'for' : 'against'}`,
-    style: `--lc:${l.ld.color}`,
-    title: `${l.side > 0 ? 'Your starter' : `Started by ${teamLabel(l.ld, l.ld.opp)}`} in ${l.ld.league.name}`,
-  }, leagueTag(l.ld.league)));
+  const chips = pl.legs.map((l) => legChip(l));
   let gameText = null;
   if (showGame) {
     if (!g) gameText = 'No game';
@@ -763,9 +766,8 @@ const splitSides = (players) => ({
   hedge: players.filter((p) => p.verdict === 'hedge').sort(byPointsDesc),
 });
 
-// Cheer / root-against columns (+ a full-width "both sides" row when needed).
-function sideColumns(players, { hideEmpty = false } = {}) {
-  const { cheer, boo, hedge } = splitSides(players);
+// Cheer / root-against columns (+ a full-width "both sides" row when needed), from splitSides().
+function sideColumns({ cheer, boo, hedge }, { hideEmpty = false } = {}) {
   const col = (cls, label, list) => h('div', { class: `col ${cls}` },
     h('h4', null, label),
     list.length ? list.map((p) => playerRow(p)) : h('div', { class: 'empty' }, 'Nobody'));
@@ -777,8 +779,7 @@ function sideColumns(players, { hideEmpty = false } = {}) {
     hedge.length ? col('hedge span', '↔ Both sides', hedge) : null);
 }
 
-function tally(players) {
-  const { cheer, boo, hedge } = splitSides(players);
+function tally({ cheer, boo, hedge }) {
   return h('div', { class: 'tally' },
     cheer.length ? h('span', { class: 'c' }, `${cheer.length} for`) : null,
     boo.length ? h('span', { class: 'b' }, `${boo.length} against`) : null,
@@ -808,9 +809,10 @@ function gameCard(g) {
     return h('div', { class: `game quiet ${g.state || ''}` },
       h('div', { class: 'g-head' }, h('div', null, title, h('div', null, status)), noPlayersBadge()));
   }
+  const sides = splitSides(g.players);
   return h('div', { class: `game ${g.state || ''}` },
-    h('div', { class: 'g-head' }, h('div', null, title, h('div', null, status)), tally(g.players)),
-    sideColumns(g.players));
+    h('div', { class: 'g-head' }, h('div', null, title, h('div', null, status)), tally(sides)),
+    sideColumns(sides));
 }
 
 function renderGames(model) {
@@ -842,7 +844,7 @@ function teamCard(t) {
       hasPlayers
         ? h('span', { class: `verdict ${cls}`, title: 'Based on projected points at stake for and against you' }, label)
         : noPlayersBadge()),
-    hasPlayers ? sideColumns(t.players, { hideEmpty: true }) : null);
+    hasPlayers ? sideColumns(splitSides(t.players), { hideEmpty: true }) : null);
 }
 
 function renderTeams(model) {
@@ -881,12 +883,11 @@ function renderPlayers(model) {
     players.length ? players.map((p) => playerRow(p, { showGame: true })) : h('div', { class: 'empty' }, 'Nobody'));
   const P = model.players.filter((p) => matchesFilter(p.game));
   if (!P.length) return emptyFiltered('None of your players play in this time window.');
+  const { cheer, boo, hedge } = splitSides(P);
   return h('div', { class: 'pcols' },
-    list('cheer', '▲ Cheer for', P.filter((p) => p.verdict === 'cheer').sort(byPointsDesc), `(${P.filter((p) => p.verdict === 'cheer').length})`),
-    list('boo', '▼ Root against', P.filter((p) => p.verdict === 'boo').sort(byPointsDesc), `(${P.filter((p) => p.verdict === 'boo').length})`),
-    P.some((p) => p.verdict === 'hedge')
-      ? list('hedge', '↔ Both sides', P.filter((p) => p.verdict === 'hedge').sort(byPointsDesc), '(on your team in one league, opponent’s in another)')
-      : null);
+    list('cheer', '▲ Cheer for', cheer, `(${cheer.length})`),
+    list('boo', '▼ Root against', boo, `(${boo.length})`),
+    hedge.length ? list('hedge', '↔ Both sides', hedge, '(on your team in one league, opponent’s in another)') : null);
 }
 
 function renderMustWatch(model) {
@@ -1088,11 +1089,7 @@ function playItem(it, side) {
         }, signed(x.pts)),
         h('span', { class: 'lp-name' }, x.pl.info.name),
         h('span', { class: 'pj' }, x.pl.info.pos),
-        x.legs.map((l) => h('span', {
-          class: `chip ${l.leg.side > 0 ? 'for' : 'against'}`,
-          style: `--lc:${l.leg.ld.color}`,
-          title: `${l.leg.side > 0 ? 'Your starter' : `Started by ${teamLabel(l.leg.ld, l.leg.ld.opp)}`} in ${l.leg.ld.league.name}: ${signed(l.pts)}`,
-        }, leagueTag(l.leg.ld.league))));
+        x.legs.map((l) => legChip(l.leg, `: ${signed(l.pts)}`)));
     }),
     h('div', { class: 'lp-desc' },
       play.scoring ? h('span', { class: 'lp-badge' }, /touchdown/i.test(play.desc) ? 'TD' : 'SCORE') : null,
@@ -1405,6 +1402,17 @@ function hideSetup() {
   if (current) $('#app').hidden = false;
 }
 
+// Nickname boxes → { key: nickname }; a box left blank removes that nickname.
+function collectInputs(saved, selector, keyAttr) {
+  const next = { ...saved };
+  document.querySelectorAll(selector).forEach((input) => {
+    const v = input.value.trim();
+    if (v) next[input.dataset[keyAttr]] = v;
+    else delete next[input.dataset[keyAttr]];
+  });
+  return next;
+}
+
 $('#setup').addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = cleanUsername($('#username').value);
@@ -1418,21 +1426,9 @@ $('#setup').addEventListener('submit', async (e) => {
   const espnChanged = JSON.stringify(espnDraft) !== JSON.stringify(espnLeagues);
   espnLeagues = espnDraft.map((l) => ({ id: l.id, teamId: l.teamId }));
   await store.set('espnLeagues', espnLeagues);
-  const next = { ...nicknames };
-  document.querySelectorAll('#nicks .nick').forEach((input) => {
-    const v = input.value.trim();
-    if (v) next[input.dataset.id] = v;
-    else delete next[input.dataset.id];
-  });
-  nicknames = next;
+  nicknames = collectInputs(nicknames, '#nicks .nick', 'id');
   await store.set('nicknames', nicknames);
-  const nextTeams = { ...teamNicks };
-  document.querySelectorAll('#nicks .tnick').forEach((input) => {
-    const v = input.value.trim();
-    if (v) nextTeams[input.dataset.key] = v;
-    else delete nextTeams[input.dataset.key];
-  });
-  teamNicks = nextTeams;
+  teamNicks = collectInputs(teamNicks, '#nicks .tnick', 'key');
   await store.set('teamNicks', teamNicks);
   const hidden = new Set(hiddenLeagues); // leagues not listed right now keep their setting
   document.querySelectorAll('#nicks .show').forEach((c) => (c.checked ? hidden.delete(c.dataset.id) : hidden.add(c.dataset.id)));
