@@ -504,6 +504,8 @@ const projStakeOf = (players) => players.reduce((s, p) => s + p.legs.reduce((t, 
 function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
   const players = new Map();
   const leagues = leagueData.map((ld, i) => ({ ...ld, color: LEAGUE_COLORS[i % LEAGUE_COLORS.length] }));
+  // ESPN's scoreboard didn't load: treat games as not started, never as finished.
+  const noSchedule = !Object.keys(games).length;
 
   for (const ld of leagues) {
     if (!ld.me) continue;
@@ -544,7 +546,7 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
       ld.opp.proj = ld.opp.espnProj;
       const open = (m) => (m.starters || []).some((pid) => {
         const g = players.get(pid)?.game;
-        return g && g.state !== 'post';
+        return noSchedule || (g && g.state !== 'post');
       });
       ld.final = ld.espnFinal || (!open(ld.me.m) && !open(ld.opp.m));
       const [a, b] = [ld.me.m.points, ld.opp.m.points];
@@ -559,8 +561,9 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
         const g = players.get(pid)?.game;
         const pts = m.players_points?.[pid] ?? 0;
         current += pts;
-        total += sleeperLiveProj(pts, leagueProj(proj[pid]?.stats, scoring), secondsLeft(g)) || pts;
-        if (g && g.state !== 'post') open++;
+        const secs = !g && noSchedule ? 3600 : secondsLeft(g); // no scoreboard → assume not started
+        total += sleeperLiveProj(pts, leagueProj(proj[pid]?.stats, scoring), secs) || pts;
+        if (noSchedule || (g && g.state !== 'post')) open++;
       }
       return { current, total, open };
     };
@@ -1191,6 +1194,9 @@ function render() {
     (views[view] || renderGames)(scoped),
     h('div', { class: 'foot' }, 'Data: Sleeper API & Game Center plays · ESPN fantasy (ESPN leagues) · schedule & live scores: ESPN. Chips show which league (+ yours, − opponent’s).'));
   $('#app').hidden = false;
+  if (!model.games.some((g) => !g.none)) {
+    setStatus('Couldn’t load the NFL schedule from ESPN — game times and live scores are missing for now.');
+  }
 }
 
 // Sleeper usernames are letters, numbers and underscores — strips "@", spaces, etc.
