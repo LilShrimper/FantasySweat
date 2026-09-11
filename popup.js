@@ -323,6 +323,7 @@ async function getGames(season, week, seasonType) {
       awayRec: wlt(away),
       period: e.status.period, // quarter (5+ = OT)
       clock: e.status.clock,   // seconds left in the quarter
+      network: (comp.broadcasts || []).flatMap((b) => b.names || []).join('/') || comp.broadcast || '', // "CBS", "ESPN/ABC"
     };
     byTeam[g.home] = g;
     byTeam[g.away] = g;
@@ -608,6 +609,11 @@ const initials = (name) => {
   return (words.length > 1 ? words.map((w) => w[0]).join('') : words[0] || '?').slice(0, 3).toUpperCase();
 };
 const kickoff = (d) => d.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+// "Sun 1:00 PM · CBS" before kickoff, "Q3 5:12 · CBS" while live; finals drop the network.
+const gameWhen = (g) => {
+  const t = g.state === 'pre' ? kickoff(g.date) : g.detail;
+  return g.network && g.state !== 'post' ? `${t} · ${g.network}` : t;
+};
 const leagueTag = (league) => nicknames[league.league_id] || initials(league.name);
 const ordinal = (n) => {
   const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
@@ -694,7 +700,7 @@ function playerRow(pl, { showGame = false } = {}) {
     else {
       const oppTeam = g.home === pl.info.team ? g.away : g.home;
       const at = g.home === pl.info.team ? 'vs' : '@';
-      gameText = `${at} ${oppTeam} · ${g.state === 'pre' ? kickoff(g.date) : g.detail}`;
+      gameText = `${at} ${oppTeam} · ${gameWhen(g)}`;
     }
   }
   return h('div', { class: 'pl' },
@@ -767,7 +773,7 @@ function gameCard(g) {
     title = h('span', { class: 'matchup' },
       teamBit(g.awayShort || g.away, g.awayRec, g.awayScore), ' @ ',
       teamBit(g.homeShort || g.home, g.homeRec, g.homeScore));
-    status = h('span', { class: `gstat ${g.state === 'in' ? 'live' : ''}` }, g.state === 'pre' ? kickoff(g.date) : g.detail);
+    status = h('span', { class: `gstat ${g.state === 'in' ? 'live' : ''}` }, gameWhen(g));
   }
 
   if (!g.players.length) {
@@ -791,7 +797,7 @@ function teamCard(t) {
   if (g) {
     const opp = isHome ? g.away : g.home;
     const score = g.state !== 'pre' ? ` · ${isHome ? g.homeScore : g.awayScore}–${isHome ? g.awayScore : g.homeScore}` : '';
-    line = `${isHome ? 'vs' : '@'} ${opp}${score} · ${g.state === 'pre' ? kickoff(g.date) : g.detail}`;
+    line = `${isHome ? 'vs' : '@'} ${opp}${score} · ${gameWhen(g)}`;
   }
   const fullName = TEAM_NAMES[t.team] || (g && (isHome ? g.homeName : g.awayName));
   const hasPlayers = t.players.length > 0;
@@ -866,7 +872,7 @@ function renderMustWatch(model) {
   el.replaceChildren(
     h('b', null, top.state === 'in' ? '🔴 Watch now: ' : '🔥 Must-watch: '),
     `${top.away} @ ${top.home}`,
-    h('span', { class: 'pj' }, ` — ${fmt1(top.projStake)} proj pts in play · ${c} to cheer, ${b} to boo · ${top.state === 'pre' ? kickoff(top.date) : top.detail}`));
+    h('span', { class: 'pj' }, ` — ${fmt1(top.projStake)} proj pts in play · ${c} to cheer, ${b} to boo · ${gameWhen(top)}`));
   el.hidden = false;
 }
 
@@ -1008,7 +1014,7 @@ function renderPlays(model) {
       .sort((a, b) => a.game.date - b.game.date)[0]?.game;
     return h('div', { class: 'lp-idle' },
       side === 'for' ? 'None of your players are playing right now.' : 'None of your opponents’ players are playing right now.',
-      next ? h('div', { class: 'lp-next' }, `Next up: ${kickoff(next.date)} · ${next.away} @ ${next.home}`) : null);
+      next ? h('div', { class: 'lp-next' }, `Next up: ${kickoff(next.date)} · ${next.away} @ ${next.home}${next.network ? ` · ${next.network}` : ''}`) : null);
   };
   const col = (cls, label, side, list) => {
     const live = model.players.some((p) => onSide(p, side) && p.game?.state === 'in' && matchesFilter(p.game));
