@@ -292,11 +292,11 @@ function espnLeagueData(d, cfg, week, dump, extraInfo) {
 
 const normTeam = (abbr) => ({ WSH: 'WAS' })[abbr] || abbr;
 
-// ESPN gives "8-9" or "8-8-1"; always show W-L-T.
+// ESPN gives "8-9" or "8-8-1"; show W-L, adding ties only when a team has one.
 function wlt(competitor) {
   const summary = competitor.records?.find((r) => r.type === 'total')?.summary || '0-0';
   const [w = 0, l = 0, t = 0] = summary.split('-').map((n) => Number(n) || 0);
-  return `${w}-${l}-${t}`;
+  return t ? `${w}-${l}-${t}` : `${w}-${l}`;
 }
 
 async function getGames(season, week, seasonType) {
@@ -761,7 +761,7 @@ function gameCard(g) {
     status = h('span', { class: 'gstat' }, '');
   } else {
     const showScore = g.state !== 'pre';
-    // e.g. "49ers (0-0-0) 14 @ Rams (0-0-0) 10"
+    // e.g. "49ers (1-0) 14 @ Rams (0-1) 10"
     const teamBit = (short, rec, score) => h('span', { class: 'tm' },
       short, h('span', { class: 'trec' }, ` (${rec})`), showScore && h('span', { class: 'sc' }, ` ${score}`));
     title = h('span', { class: 'matchup' },
