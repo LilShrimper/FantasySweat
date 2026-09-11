@@ -523,7 +523,10 @@ const projStakeOf = (players) => players.reduce((s, p) => s + p.legs.reduce((t, 
 
 function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
   const players = new Map();
-  const leagues = leagueData.map((ld, i) => ({ ...ld, color: LEAGUE_COLORS[i % LEAGUE_COLORS.length] }));
+  const leagues = leagueData.map((ld, i) => {
+    const defaultColor = LEAGUE_COLORS[i % LEAGUE_COLORS.length];
+    return { ...ld, defaultColor, color: leagueColors[ld.league.league_id] || defaultColor };
+  });
   // ESPN's scoreboard didn't load: treat games as not started, never as finished.
   const noSchedule = !Object.keys(games).length;
 
@@ -1111,6 +1114,7 @@ let selectedLeagues = [];  // league_ids picked on the cards (empty = all league
 let nicknames = {};        // league_id → short name shown on player tags
 let teamNicks = {};        // "league_id:team key" → team nickname shown on the league cards
 let hiddenLeagues = [];    // league_ids unchecked in Settings — left out of everything
+let leagueColors = {};     // league_id → color picked in Settings (otherwise the default for its position)
 let espnLeagues = [];      // [{ id, teamId }] — ESPN leagues from Settings
 let espnDraft = [];        // the same list while Settings is open (saved on Save)
 let refreshTimer = null;
@@ -1332,9 +1336,24 @@ async function showSetup() {
     input.addEventListener('input', () => { preview.textContent = input.value.trim() || fallback; });
     const show = h('input', { type: 'checkbox', class: 'show', 'data-id': id });
     show.checked = !hiddenLeagues.includes(id);
+    // League color: clicking the tag preview opens the picker (an invisible color input laid over it);
+    // the row and tag repaint live, and ↺ goes back to the default for its position.
+    const color = h('input', {
+      type: 'color', class: 'lcolor', 'data-id': id, 'data-default': ld.defaultColor, value: ld.color,
+      title: 'Click to change the league color',
+    });
+    const reset = h('button', { type: 'button', class: 'ghost lreset', title: 'Back to the default color' }, '↺');
     const row = h('div', { class: `nick-row ${show.checked ? '' : 'off'}`, style: `--lc:${ld.color}` },
       h('label', { class: 'nick-name', title: `Show ${ld.league.name}` }, show, h('span', { class: 'nm' }, ld.league.name)),
-      input, preview);
+      input, h('span', { class: 'lcolor-pick' }, preview, color), reset);
+    const paint = () => {
+      row.style.setProperty('--lc', color.value);
+      preview.style.setProperty('--lc', color.value);
+      reset.classList.toggle('gone', color.value === ld.defaultColor);
+    };
+    paint();
+    color.addEventListener('input', paint);
+    reset.addEventListener('click', () => { color.value = ld.defaultColor; paint(); });
     show.addEventListener('change', () => row.classList.toggle('off', !show.checked));
 
     const teams = ld.teams || [];
@@ -1436,6 +1455,13 @@ $('#setup').addEventListener('submit', async (e) => {
   document.querySelectorAll('#nicks .show').forEach((c) => (c.checked ? hidden.delete(c.dataset.id) : hidden.add(c.dataset.id)));
   hiddenLeagues = [...hidden];
   await store.set('hiddenLeagues', hiddenLeagues);
+  // Only colors changed from the default are saved; repaint the loaded leagues so no refetch is needed.
+  document.querySelectorAll('#nicks .lcolor').forEach((c) => {
+    if (c.value === c.dataset.default) delete leagueColors[c.dataset.id];
+    else leagueColors[c.dataset.id] = c.value;
+  });
+  await store.set('leagueColors', leagueColors);
+  for (const ld of current?.model.leagues || []) ld.color = leagueColors[ld.league.league_id] || ld.defaultColor;
   const userChanged = name !== cleanUsername(await store.get('username')); // none saved reads as ''
   await store.set('username', name);
   hideSetup();
@@ -1443,7 +1469,7 @@ $('#setup').addEventListener('submit', async (e) => {
     current = null;
     refresh();
   } else {
-    render(); // nicknames / shown leagues only — no need to refetch
+    render(); // nicknames / colors / shown leagues only — no need to refetch
   }
 });
 $('#cancelSetup').addEventListener('click', hideSetup);
@@ -1553,6 +1579,7 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   nicknames = (await store.get('nicknames')) || {};
   teamNicks = (await store.get('teamNicks')) || {};
   hiddenLeagues = (await store.get('hiddenLeagues')) || [];
+  leagueColors = (await store.get('leagueColors')) || {};
   espnLeagues = (await store.get('espnLeagues')) || [];
   $('#leagueChip').addEventListener('click', () => {
     selectedLeagues = [];
