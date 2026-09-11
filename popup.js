@@ -719,12 +719,14 @@ const rankTitle = (pl) => {
     : `${tag} preseason PPR rank — switches to season points rank after Week 1`;
 };
 
-const byImpactDesc = (a, b) => Math.abs(b.impact) - Math.abs(a.impact) || b.projShown - a.projShown;
+// Points so far once a player's game has kicked off, his projection before then; highest first.
+const sortPts = (p) => (p.game && p.game.state !== 'pre' ? p.ptsShown : p.projShown);
+const byPointsDesc = (a, b) => sortPts(b) - sortPts(a) || b.projShown - a.projShown || Math.abs(b.impact) - Math.abs(a.impact);
 
 const splitSides = (players) => ({
-  cheer: players.filter((p) => p.verdict === 'cheer').sort(byImpactDesc),
-  boo: players.filter((p) => p.verdict === 'boo').sort(byImpactDesc),
-  hedge: players.filter((p) => p.verdict === 'hedge').sort(byImpactDesc),
+  cheer: players.filter((p) => p.verdict === 'cheer').sort(byPointsDesc),
+  boo: players.filter((p) => p.verdict === 'boo').sort(byPointsDesc),
+  hedge: players.filter((p) => p.verdict === 'hedge').sort(byPointsDesc),
 });
 
 // Cheer / root-against columns (+ a full-width "both sides" row when needed).
@@ -846,10 +848,10 @@ function renderPlayers(model) {
   const P = model.players.filter((p) => matchesFilter(p.game));
   if (!P.length) return emptyFiltered('None of your players play in this time window.');
   return h('div', { class: 'pcols' },
-    list('cheer', '▲ Cheer for', P.filter((p) => p.verdict === 'cheer').sort(byImpactDesc), `(${P.filter((p) => p.verdict === 'cheer').length})`),
-    list('boo', '▼ Root against', P.filter((p) => p.verdict === 'boo').sort(byImpactDesc), `(${P.filter((p) => p.verdict === 'boo').length})`),
+    list('cheer', '▲ Cheer for', P.filter((p) => p.verdict === 'cheer').sort(byPointsDesc), `(${P.filter((p) => p.verdict === 'cheer').length})`),
+    list('boo', '▼ Root against', P.filter((p) => p.verdict === 'boo').sort(byPointsDesc), `(${P.filter((p) => p.verdict === 'boo').length})`),
     P.some((p) => p.verdict === 'hedge')
-      ? list('hedge', '↔ Both sides', P.filter((p) => p.verdict === 'hedge').sort(byImpactDesc), '(on your team in one league, opponent’s in another)')
+      ? list('hedge', '↔ Both sides', P.filter((p) => p.verdict === 'hedge').sort(byPointsDesc), '(on your team in one league, opponent’s in another)')
       : null);
 }
 
