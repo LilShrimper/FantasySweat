@@ -994,6 +994,13 @@ async function updatePlays(cur) {
   if (pulled) await store.set('plays', playsCache);
 }
 
+// Plays are only pulled while the Live plays tab is open: on every refresh, and right away when it opens.
+function loadPlays() {
+  const cur = current;
+  if (!cur || view !== 'plays') return;
+  updatePlays(cur).then(() => { if (cur === current && view === 'plays') render(); }).catch(() => {});
+}
+
 const signed = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + fmtPts(Math.abs(n));
 
 // Two columns — plays by your starters, plays by your opponents' starters — newest first.
@@ -1274,9 +1281,7 @@ async function refresh() {
     fillWeeks(current.state.week, current.week);
     setStatus('');
     render();
-    // Plays load after the main view so they never hold it up.
-    const cur = current;
-    updatePlays(cur).then(() => { if (cur === current && view === 'plays') render(); }).catch(() => {});
+    loadPlays(); // after the main view, so plays never hold it up
   } catch (e) {
     if (seq !== refreshSeq) return;
     setStatus(`Couldn't load: ${e.message}`, true);
@@ -1507,6 +1512,7 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
   store.set('view', view);
   render();
+  loadPlays();
 }));
 
 (async function init() {
