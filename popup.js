@@ -162,23 +162,23 @@ const getWeekPlays = (season, seasonType, week) => queryPlays(season, seasonType
 
 // ---------- ESPN leagues (public leagues; ESPN's own fantasy API, unofficial) ----------
 // This week's matchups with lineups, live points, projections and win probability, plus teams,
-// owners and scoring. The filter header trims the schedule to just this week.
-async function getEspnLeague(id, season, week) {
+// owners and scoring. The filter header trims the schedule to just this week's matchup period.
+async function getEspnLeague(id, season, week, period = week) {
   const url = `${ESPN_FANTASY}/${season}/segments/0/leagues/${id}?view=mMatchupScore&view=mBoxscore&view=mTeam&view=mSettings&scoringPeriodId=${Number(week)}`;
   const res = await fetch(url, {
     cache: 'no-store',
-    headers: { 'x-fantasy-filter': JSON.stringify({ schedule: { filterMatchupPeriodIds: { value: [Number(week)] } } }) },
+    headers: { 'x-fantasy-filter': JSON.stringify({ schedule: { filterMatchupPeriodIds: { value: [Number(period)] } } }) },
   });
   if (res.status === 401 || res.status === 403) throw new Error('This ESPN league is private');
   if (!res.ok) throw new Error(`${res.status} from ESPN`);
   return res.json();
 }
 
-// League name + teams (with owners) for the Settings team picker.
+// League name + teams (with owners) for the Settings team picker, and which weeks each matchup covers.
 const espnMetaCache = {};
-async function getEspnMeta(id) {
+async function getEspnMeta(id, season) {
   if (espnMetaCache[id]) return espnMetaCache[id];
-  const season = current?.state.season || (await getState()).season;
+  season ||= current?.state.season || (await getState()).season;
   const res = await fetch(`${ESPN_FANTASY}/${season}/segments/0/leagues/${id}?view=mTeam&view=mSettings`, { cache: 'no-store' });
   if (res.status === 401 || res.status === 403) throw new Error('private');
   if (!res.ok) throw new Error(res.status === 404 ? 'notfound' : `HTTP ${res.status}`);
@@ -189,7 +189,16 @@ async function getEspnMeta(id) {
     teams: (d.teams || [])
       .map((t) => ({ id: t.id, name: espnTeamName(t), owner: members.find((m) => m.id === t.owners?.[0])?.displayName || '' }))
       .sort((a, b) => a.name.localeCompare(b.name)),
+    periods: d.settings?.scheduleSettings?.matchupPeriods || {}, // { "15": [15, 16], ... }
   });
+}
+
+// ESPN's matchup period for an NFL week: the same number all regular season, but a 2-week playoff
+// round puts two weeks under one period (e.g. period 15 = weeks 15 and 16).
+async function espnPeriod(id, season, week) {
+  const periods = (await getEspnMeta(id, season).catch(() => null))?.periods || {};
+  const hit = Object.entries(periods).find(([, weeks]) => weeks.map(Number).includes(Number(week)));
+  return hit ? Number(hit[0]) : Number(week);
 }
 
 const espnTeamName = (t) => (t?.name || `${t?.location || ''} ${t?.nickname || ''}`).trim() || 'Team';
@@ -232,7 +241,7 @@ function sleeperIdFor(p, dump) {
 }
 
 // Shape one ESPN league like a Sleeper one ({ league, me, opp }) so the rest of the app treats them alike.
-function espnLeagueData(d, cfg, week, dump, extraInfo) {
+function espnLeagueData(d, cfg, week, period, dump, extraInfo) {
   const league = {
     league_id: `espn:${cfg.id}`,
     name: d.settings?.name || `ESPN league ${cfg.id}`,
@@ -247,7 +256,7 @@ function espnLeagueData(d, cfg, week, dump, extraInfo) {
     .sort((a, b) => a.name.localeCompare(b.name));
   const team = teams.find((t) => t.id === Number(cfg.teamId));
   if (!team) return { league, teams: teamList, skip: 'Pick your team in Settings ⚙' };
-  const m = (d.schedule || []).find((x) => x.matchupPeriodId === Number(week) && (x.home?.teamId === team.id || x.away?.teamId === team.id));
+  const m = (d.schedule || []).find((x) => x.matchupPeriodId === period && (x.home?.teamId === team.id || x.away?.teamId === team.id));
   if (!m) return { league, teams: teamList, skip: 'No matchup this week' };
   const mine = m.home?.teamId === team.id ? m.home : m.away;
   const theirs = m.home?.teamId === team.id ? m.away : m.home;
@@ -434,8 +443,8 @@ async function loadAll(username, weekOverride) {
     Promise.all(leagues.map((l) => loadLeague(l, user.user_id, week).catch((e) => ({ league: l, skip: e.message })))),
     getPlayerDump().catch(() => null),
     useSeasonRanks ? getSeasonRanks(state.season, state.seasonType).catch(() => null) : null,
-    Promise.all(espnLeagues.map((c) => getEspnLeague(c.id, state.season, week)
-      .then((d) => ({ c, d }))
+    Promise.all(espnLeagues.map((c) => espnPeriod(c.id, state.season, week)
+      .then((period) => getEspnLeague(c.id, state.season, week, period).then((d) => ({ c, d, period })))
       .catch((e) => ({ c, err: e.message })))),
   ]);
 
@@ -448,9 +457,9 @@ async function loadAll(username, weekOverride) {
   }
 
   const extraInfo = {}; // names for ESPN players we couldn't match to a Sleeper player
-  const espnData = espnRaw.map(({ c, d, err }) => (err
+  const espnData = espnRaw.map(({ c, d, period, err }) => (err
     ? { league: { league_id: `espn:${c.id}`, name: espnMetaCache[c.id]?.name || `ESPN league ${c.id}`, espn: true }, skip: err }
-    : espnLeagueData(d, c, week, dump, extraInfo)));
+    : espnLeagueData(d, c, week, period, dump, extraInfo)));
 
   return { state, week, user, model: buildModel([...leagueData, ...espnData], proj, dump, games, ranks, extraInfo) };
 }
