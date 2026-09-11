@@ -1476,20 +1476,21 @@ $('#popout').addEventListener('click', async () => {
     window.open(url, 'fantasy-sweat', 'popup,width=500,height=820');
     return;
   }
-  const existingId = await store.get('popoutId');
-  if (existingId != null) {
-    try {
-      await chrome.windows.update(existingId, { focused: true });
+  // Already open? Find it by its page, not a saved window id — Chrome reuses window ids after a
+  // restart, so a saved id could point at some other window.
+  try {
+    const [open] = await chrome.runtime.getContexts({ contextTypes: ['TAB'], documentUrls: [url] });
+    if (open) {
+      await chrome.windows.update(open.windowId, { focused: true });
       if (MODE === 'popup') window.close();
       return;
-    } catch { /* that window was closed — open a new one */ }
-  }
+    }
+  } catch { /* couldn't check — just open a new one */ }
   const b = (await store.get('popoutBounds')) || {};
-  const win = await chrome.windows.create({
+  await chrome.windows.create({
     url, type: 'popup', width: b.width || 500, height: b.height || 820,
     ...(b.left != null ? { left: b.left, top: b.top } : {}),
   });
-  await store.set('popoutId', win.id);
   if (MODE === 'popup') window.close();
 });
 document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
