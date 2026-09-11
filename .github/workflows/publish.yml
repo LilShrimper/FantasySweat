@@ -42,7 +42,7 @@ jobs:
 
       - name: Build the store zip
         if: steps.version.outputs.publish == 'true'
-        run: zip -r extension.zip manifest.json popup.html popup.css popup.js icons
+        run: zip -r extension.zip manifest.json fantasy-sweat.html popup.css popup.js icons
 
       - uses: actions/setup-node@v4
         if: steps.version.outputs.publish == 'true'
