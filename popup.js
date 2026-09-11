@@ -113,8 +113,6 @@ async function getPlayerDump() {
       p.number ?? null, p.espn_id ?? null];
   }
   await store.set('playerDump3', { t: Date.now(), map });
-  store.set('playerDump2', null); // older cache formats
-  store.set('playerDump', null);
   return map;
 }
 
@@ -162,23 +160,23 @@ const getWeekPlays = (season, seasonType, week) => queryPlays(season, seasonType
 
 // ---------- ESPN leagues (public leagues; ESPN's own fantasy API, unofficial) ----------
 // This week's matchups with lineups, live points, projections and win probability, plus teams,
-// owners and scoring. The filter header trims the schedule to just this week.
-async function getEspnLeague(id, season, week) {
+// owners and scoring. The filter header trims the schedule to just this week's matchup period.
+async function getEspnLeague(id, season, week, period = week) {
   const url = `${ESPN_FANTASY}/${season}/segments/0/leagues/${id}?view=mMatchupScore&view=mBoxscore&view=mTeam&view=mSettings&scoringPeriodId=${Number(week)}`;
   const res = await fetch(url, {
     cache: 'no-store',
-    headers: { 'x-fantasy-filter': JSON.stringify({ schedule: { filterMatchupPeriodIds: { value: [Number(week)] } } }) },
+    headers: { 'x-fantasy-filter': JSON.stringify({ schedule: { filterMatchupPeriodIds: { value: [Number(period)] } } }) },
   });
   if (res.status === 401 || res.status === 403) throw new Error('This ESPN league is private');
   if (!res.ok) throw new Error(`${res.status} from ESPN`);
   return res.json();
 }
 
-// League name + teams (with owners) for the Settings team picker.
+// League name + teams (with owners) for the Settings team picker, and which weeks each matchup covers.
 const espnMetaCache = {};
-async function getEspnMeta(id) {
+async function getEspnMeta(id, season) {
   if (espnMetaCache[id]) return espnMetaCache[id];
-  const season = current?.state.season || (await getState()).season;
+  season ||= current?.state.season || (await getState()).season;
   const res = await fetch(`${ESPN_FANTASY}/${season}/segments/0/leagues/${id}?view=mTeam&view=mSettings`, { cache: 'no-store' });
   if (res.status === 401 || res.status === 403) throw new Error('private');
   if (!res.ok) throw new Error(res.status === 404 ? 'notfound' : `HTTP ${res.status}`);
@@ -189,7 +187,16 @@ async function getEspnMeta(id) {
     teams: (d.teams || [])
       .map((t) => ({ id: t.id, name: espnTeamName(t), owner: members.find((m) => m.id === t.owners?.[0])?.displayName || '' }))
       .sort((a, b) => a.name.localeCompare(b.name)),
+    periods: d.settings?.scheduleSettings?.matchupPeriods || {}, // { "15": [15, 16], ... }
   });
+}
+
+// ESPN's matchup period for an NFL week: the same number all regular season, but a 2-week playoff
+// round puts two weeks under one period (e.g. period 15 = weeks 15 and 16).
+async function espnPeriod(id, season, week) {
+  const periods = (await getEspnMeta(id, season).catch(() => null))?.periods || {};
+  const hit = Object.entries(periods).find(([, weeks]) => weeks.map(Number).includes(Number(week)));
+  return hit ? Number(hit[0]) : Number(week);
 }
 
 const espnTeamName = (t) => (t?.name || `${t?.location || ''} ${t?.nickname || ''}`).trim() || 'Team';
@@ -232,7 +239,7 @@ function sleeperIdFor(p, dump) {
 }
 
 // Shape one ESPN league like a Sleeper one ({ league, me, opp }) so the rest of the app treats them alike.
-function espnLeagueData(d, cfg, week, dump, extraInfo) {
+function espnLeagueData(d, cfg, week, period, dump, extraInfo) {
   const league = {
     league_id: `espn:${cfg.id}`,
     name: d.settings?.name || `ESPN league ${cfg.id}`,
@@ -247,7 +254,7 @@ function espnLeagueData(d, cfg, week, dump, extraInfo) {
     .sort((a, b) => a.name.localeCompare(b.name));
   const team = teams.find((t) => t.id === Number(cfg.teamId));
   if (!team) return { league, teams: teamList, skip: 'Pick your team in Settings ⚙' };
-  const m = (d.schedule || []).find((x) => x.matchupPeriodId === Number(week) && (x.home?.teamId === team.id || x.away?.teamId === team.id));
+  const m = (d.schedule || []).find((x) => x.matchupPeriodId === period && (x.home?.teamId === team.id || x.away?.teamId === team.id));
   if (!m) return { league, teams: teamList, skip: 'No matchup this week' };
   const mine = m.home?.teamId === team.id ? m.home : m.away;
   const theirs = m.home?.teamId === team.id ? m.away : m.home;
@@ -434,8 +441,8 @@ async function loadAll(username, weekOverride) {
     Promise.all(leagues.map((l) => loadLeague(l, user.user_id, week).catch((e) => ({ league: l, skip: e.message })))),
     getPlayerDump().catch(() => null),
     useSeasonRanks ? getSeasonRanks(state.season, state.seasonType).catch(() => null) : null,
-    Promise.all(espnLeagues.map((c) => getEspnLeague(c.id, state.season, week)
-      .then((d) => ({ c, d }))
+    Promise.all(espnLeagues.map((c) => espnPeriod(c.id, state.season, week)
+      .then((period) => getEspnLeague(c.id, state.season, week, period).then((d) => ({ c, d, period })))
       .catch((e) => ({ c, err: e.message })))),
   ]);
 
@@ -448,9 +455,9 @@ async function loadAll(username, weekOverride) {
   }
 
   const extraInfo = {}; // names for ESPN players we couldn't match to a Sleeper player
-  const espnData = espnRaw.map(({ c, d, err }) => (err
+  const espnData = espnRaw.map(({ c, d, period, err }) => (err
     ? { league: { league_id: `espn:${c.id}`, name: espnMetaCache[c.id]?.name || `ESPN league ${c.id}`, espn: true }, skip: err }
-    : espnLeagueData(d, c, week, dump, extraInfo)));
+    : espnLeagueData(d, c, week, period, dump, extraInfo)));
 
   return { state, week, user, model: buildModel([...leagueData, ...espnData], proj, dump, games, ranks, extraInfo) };
 }
@@ -707,14 +714,17 @@ function injBadge(inj) {
   return h('span', { class: `inj ${code === 'Q' ? 'q' : ''}`, title: inj }, code);
 }
 
+// A league's tag chip for one leg of a player: + if he's your starter there, − if your opponent's.
+const legChip = (leg, extra = '') => h('span', {
+  class: `chip ${leg.side > 0 ? 'for' : 'against'}`,
+  style: `--lc:${leg.ld.color}`,
+  title: `${leg.side > 0 ? 'Your starter' : `Started by ${teamLabel(leg.ld, leg.ld.opp)}`} in ${leg.ld.league.name}${extra}`,
+}, leagueTag(leg.ld.league));
+
 function playerRow(pl, { showGame = false } = {}) {
   const g = pl.game;
   const started = g && g.state !== 'pre';
-  const chips = pl.legs.map((l) => h('span', {
-    class: `chip ${l.side > 0 ? 'for' : 'against'}`,
-    style: `--lc:${l.ld.color}`,
-    title: `${l.side > 0 ? 'Your starter' : `Started by ${teamLabel(l.ld, l.ld.opp)}`} in ${l.ld.league.name}`,
-  }, leagueTag(l.ld.league)));
+  const chips = pl.legs.map((l) => legChip(l));
   let gameText = null;
   if (showGame) {
     if (!g) gameText = 'No game';
@@ -756,9 +766,8 @@ const splitSides = (players) => ({
   hedge: players.filter((p) => p.verdict === 'hedge').sort(byPointsDesc),
 });
 
-// Cheer / root-against columns (+ a full-width "both sides" row when needed).
-function sideColumns(players, { hideEmpty = false } = {}) {
-  const { cheer, boo, hedge } = splitSides(players);
+// Cheer / root-against columns (+ a full-width "both sides" row when needed), from splitSides().
+function sideColumns({ cheer, boo, hedge }, { hideEmpty = false } = {}) {
   const col = (cls, label, list) => h('div', { class: `col ${cls}` },
     h('h4', null, label),
     list.length ? list.map((p) => playerRow(p)) : h('div', { class: 'empty' }, 'Nobody'));
@@ -770,8 +779,7 @@ function sideColumns(players, { hideEmpty = false } = {}) {
     hedge.length ? col('hedge span', '↔ Both sides', hedge) : null);
 }
 
-function tally(players) {
-  const { cheer, boo, hedge } = splitSides(players);
+function tally({ cheer, boo, hedge }) {
   return h('div', { class: 'tally' },
     cheer.length ? h('span', { class: 'c' }, `${cheer.length} for`) : null,
     boo.length ? h('span', { class: 'b' }, `${boo.length} against`) : null,
@@ -801,9 +809,10 @@ function gameCard(g) {
     return h('div', { class: `game quiet ${g.state || ''}` },
       h('div', { class: 'g-head' }, h('div', null, title, h('div', null, status)), noPlayersBadge()));
   }
+  const sides = splitSides(g.players);
   return h('div', { class: `game ${g.state || ''}` },
-    h('div', { class: 'g-head' }, h('div', null, title, h('div', null, status)), tally(g.players)),
-    sideColumns(g.players));
+    h('div', { class: 'g-head' }, h('div', null, title, h('div', null, status)), tally(sides)),
+    sideColumns(sides));
 }
 
 function renderGames(model) {
@@ -835,7 +844,7 @@ function teamCard(t) {
       hasPlayers
         ? h('span', { class: `verdict ${cls}`, title: 'Based on projected points at stake for and against you' }, label)
         : noPlayersBadge()),
-    hasPlayers ? sideColumns(t.players, { hideEmpty: true }) : null);
+    hasPlayers ? sideColumns(splitSides(t.players), { hideEmpty: true }) : null);
 }
 
 function renderTeams(model) {
@@ -874,12 +883,11 @@ function renderPlayers(model) {
     players.length ? players.map((p) => playerRow(p, { showGame: true })) : h('div', { class: 'empty' }, 'Nobody'));
   const P = model.players.filter((p) => matchesFilter(p.game));
   if (!P.length) return emptyFiltered('None of your players play in this time window.');
+  const { cheer, boo, hedge } = splitSides(P);
   return h('div', { class: 'pcols' },
-    list('cheer', '▲ Cheer for', P.filter((p) => p.verdict === 'cheer').sort(byPointsDesc), `(${P.filter((p) => p.verdict === 'cheer').length})`),
-    list('boo', '▼ Root against', P.filter((p) => p.verdict === 'boo').sort(byPointsDesc), `(${P.filter((p) => p.verdict === 'boo').length})`),
-    P.some((p) => p.verdict === 'hedge')
-      ? list('hedge', '↔ Both sides', P.filter((p) => p.verdict === 'hedge').sort(byPointsDesc), '(on your team in one league, opponent’s in another)')
-      : null);
+    list('cheer', '▲ Cheer for', cheer, `(${cheer.length})`),
+    list('boo', '▼ Root against', boo, `(${boo.length})`),
+    hedge.length ? list('hedge', '↔ Both sides', hedge, '(on your team in one league, opponent’s in another)') : null);
 }
 
 function renderMustWatch(model) {
@@ -898,7 +906,9 @@ function renderMustWatch(model) {
 }
 
 // ---------- live plays ----------
-let playsCache = null;  // { key, games: { [sleeperGameId]: { final, plays: { [playId]: play } } } } — saved per week
+// { key, games: { [sleeperGameId]: { final, plays: { [playId]: play } } } } — only the week on screen is
+// saved (~1 MB a week), since Live plays only shows games in progress; older weeks are dropped.
+let playsCache = null;
 let playGameIds = null; // ESPN game id → Sleeper game id for the games we pull plays from
 const PLAY_KEEP = 300;  // plays kept per game
 const PLAYS_SHOWN = 15; // Live plays is a snapshot: latest plays per column, not the full history
@@ -924,12 +934,14 @@ const playsBackfilled = new Set(); // week keys whose full history we've pulled 
 
 // Plays for every started game with one of your (or your opponents') starters. The first pull after
 // opening grabs the whole week in one request (every play so far); after that, only the latest 20 of
-// games still going — refreshes are 30s apart, far less than 20 plays. Saved per week.
+// games still going — refreshes are 30s apart, far less than 20 plays. Only this week is saved.
 async function updatePlays(cur) {
   const { state, week, model } = cur;
   const key = `plays-${state.season}-${state.seasonType}-${week}`;
   if (playsCache?.key !== key) {
-    playsCache = (await store.get(key)) || { key, games: {} };
+    const saved = await store.get('plays');
+    playsCache = saved?.key === key ? saved : { key, games: {} };
+    if (playsCache !== saved) playsBackfilled.delete(key); // nothing saved for this week: pull it all again
     playGameIds = null;
   }
   const sched = await getSleeperSchedule(state.season, state.seasonType).catch(() => []);
@@ -978,7 +990,14 @@ async function updatePlays(cur) {
     pulled = live.length > 0;
   }
   playGameIds = ids;
-  if (pulled) await store.set(key, playsCache);
+  if (pulled) await store.set('plays', playsCache);
+}
+
+// Plays are only pulled while the Live plays tab is open: on every refresh, and right away when it opens.
+function loadPlays() {
+  const cur = current;
+  if (!cur || view !== 'plays') return;
+  updatePlays(cur).then(() => { if (cur === current && view === 'plays') render(); }).catch(() => {});
 }
 
 const signed = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + fmtPts(Math.abs(n));
@@ -1070,11 +1089,7 @@ function playItem(it, side) {
         }, signed(x.pts)),
         h('span', { class: 'lp-name' }, x.pl.info.name),
         h('span', { class: 'pj' }, x.pl.info.pos),
-        x.legs.map((l) => h('span', {
-          class: `chip ${l.leg.side > 0 ? 'for' : 'against'}`,
-          style: `--lc:${l.leg.ld.color}`,
-          title: `${l.leg.side > 0 ? 'Your starter' : `Started by ${teamLabel(l.leg.ld, l.leg.ld.opp)}`} in ${l.leg.ld.league.name}: ${signed(l.pts)}`,
-        }, leagueTag(l.leg.ld.league))));
+        x.legs.map((l) => legChip(l.leg, `: ${signed(l.pts)}`)));
     }),
     h('div', { class: 'lp-desc' },
       play.scoring ? h('span', { class: 'lp-badge' }, /touchdown/i.test(play.desc) ? 'TD' : 'SCORE') : null,
@@ -1097,6 +1112,7 @@ let hiddenLeagues = [];    // league_ids unchecked in Settings — left out of e
 let espnLeagues = [];      // [{ id, teamId }] — ESPN leagues from Settings
 let espnDraft = [];        // the same list while Settings is open (saved on Save)
 let refreshTimer = null;
+let pickedWeek = null;     // week chosen in the dropdown; null = follow the NFL's current week
 
 // Re-run the cheer/boo math using only the picked leagues' matchups; drops games with nothing at stake there.
 // keepAll (for leagues hidden in Settings): keep every game, so the rest looks just like "all leagues".
@@ -1235,7 +1251,7 @@ function render() {
   $('#view').replaceChildren(
     (views[view] || renderGames)(scoped),
     h('div', { class: 'foot' }, 'Data: Sleeper API & Game Center plays · ESPN fantasy (ESPN leagues) · schedule & live scores: ESPN. Chips show which league (+ yours, − opponent’s).'));
-  $('#app').hidden = false;
+  $('#app').hidden = !$('#setup').hidden; // auto-refresh must not pop the dashboard up under Settings
   if (!model.games.some((g) => !g.none)) {
     setStatus('Couldn’t load the NFL schedule from ESPN — game times and live scores are missing for now.');
   }
@@ -1244,25 +1260,28 @@ function render() {
 // Sleeper usernames are letters, numbers and underscores — strips "@", spaces, etc.
 const cleanUsername = (v) => String(v || '').replace(/[^A-Za-z0-9_]/g, '');
 
+let refreshSeq = 0; // only the newest refresh may update the page
+
 async function refresh() {
   const username = cleanUsername(await store.get('username')); // also fixes a saved "@name"
   if (!username && !espnLeagues.length) return showSetup();
+  const seq = ++refreshSeq;
   const btn = $('#refresh');
   btn.innerHTML = '<span class="spin">↻</span>';
   if (!current) setStatus('Loading your matchups…');
   try {
-    const weekSel = Number($('#week').value) || null;
-    current = await loadAll(username, weekSel);
+    const data = await loadAll(username, pickedWeek);
+    if (seq !== refreshSeq) return; // a newer refresh (e.g. another week) started meanwhile — it wins
+    current = data;
     fillWeeks(current.state.week, current.week);
     setStatus('');
     render();
-    // Plays load after the main view so they never hold it up.
-    const cur = current;
-    updatePlays(cur).then(() => { if (cur === current && view === 'plays') render(); }).catch(() => {});
+    loadPlays(); // after the main view, so plays never hold it up
   } catch (e) {
+    if (seq !== refreshSeq) return;
     setStatus(`Couldn't load: ${e.message}`, true);
   } finally {
-    btn.textContent = '↻';
+    if (seq === refreshSeq) btn.textContent = '↻';
   }
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(refresh, nextRefreshDelay());
@@ -1276,10 +1295,14 @@ function nextRefreshDelay() {
   return Math.max(LIVE_REFRESH_MS, Math.min(IDLE_REFRESH_MS, untilKickoff));
 }
 
+// Rebuilt when the NFL week rolls over (a popout left open over Tuesday), so the • moves too.
 function fillWeeks(currentWeek, selected) {
   const sel = $('#week');
-  if (sel.options.length) { sel.value = String(selected); return; }
-  for (let w = 1; w <= 18; w++) sel.append(h('option', { value: w }, `Wk ${w}${w === currentWeek ? ' •' : ''}`));
+  if (sel.dataset.current !== String(currentWeek)) {
+    sel.replaceChildren(...Array.from({ length: 18 }, (_, i) =>
+      h('option', { value: i + 1 }, `Wk ${i + 1}${i + 1 === currentWeek ? ' •' : ''}`)));
+    sel.dataset.current = currentWeek;
+  }
   sel.value = String(selected);
 }
 
@@ -1290,7 +1313,7 @@ async function showSetup() {
   const saved = cleanUsername(await store.get('username'));
   $('#username').value = saved;
   $('#userHint').hidden = true;
-  $('#cancelSetup').hidden = !saved || !current;
+  $('#cancelSetup').hidden = !current; // nothing to go back to on first run (ESPN-only users included)
 
   // One row per league (once leagues have loaded): show/hide, its tag, and — folded away —
   // a nickname box for every team in it.
@@ -1379,6 +1402,17 @@ function hideSetup() {
   if (current) $('#app').hidden = false;
 }
 
+// Nickname boxes → { key: nickname }; a box left blank removes that nickname.
+function collectInputs(saved, selector, keyAttr) {
+  const next = { ...saved };
+  document.querySelectorAll(selector).forEach((input) => {
+    const v = input.value.trim();
+    if (v) next[input.dataset[keyAttr]] = v;
+    else delete next[input.dataset[keyAttr]];
+  });
+  return next;
+}
+
 $('#setup').addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = cleanUsername($('#username').value);
@@ -1392,27 +1426,15 @@ $('#setup').addEventListener('submit', async (e) => {
   const espnChanged = JSON.stringify(espnDraft) !== JSON.stringify(espnLeagues);
   espnLeagues = espnDraft.map((l) => ({ id: l.id, teamId: l.teamId }));
   await store.set('espnLeagues', espnLeagues);
-  const next = { ...nicknames };
-  document.querySelectorAll('#nicks .nick').forEach((input) => {
-    const v = input.value.trim();
-    if (v) next[input.dataset.id] = v;
-    else delete next[input.dataset.id];
-  });
-  nicknames = next;
+  nicknames = collectInputs(nicknames, '#nicks .nick', 'id');
   await store.set('nicknames', nicknames);
-  const nextTeams = { ...teamNicks };
-  document.querySelectorAll('#nicks .tnick').forEach((input) => {
-    const v = input.value.trim();
-    if (v) nextTeams[input.dataset.key] = v;
-    else delete nextTeams[input.dataset.key];
-  });
-  teamNicks = nextTeams;
+  teamNicks = collectInputs(teamNicks, '#nicks .tnick', 'key');
   await store.set('teamNicks', teamNicks);
   const hidden = new Set(hiddenLeagues); // leagues not listed right now keep their setting
   document.querySelectorAll('#nicks .show').forEach((c) => (c.checked ? hidden.delete(c.dataset.id) : hidden.add(c.dataset.id)));
   hiddenLeagues = [...hidden];
   await store.set('hiddenLeagues', hiddenLeagues);
-  const userChanged = name !== (await store.get('username'));
+  const userChanged = name !== cleanUsername(await store.get('username')); // none saved reads as ''
   await store.set('username', name);
   hideSetup();
   if (userChanged || espnChanged || !current) {
@@ -1440,7 +1462,13 @@ $('#username').addEventListener('input', (e) => {
 });
 $('#settings').addEventListener('click', () => ($('#setup').hidden ? showSetup() : hideSetup()));
 $('#refresh').addEventListener('click', refresh);
-$('#week').addEventListener('change', () => { current = null; refresh(); });
+$('#week').addEventListener('change', (e) => {
+  // Picking the current week means "follow along", so a popout left open moves on to next week by itself.
+  const w = Number(e.target.value);
+  pickedWeek = w === Number(e.target.dataset.current) ? null : w;
+  current = null;
+  refresh();
+});
 const isExtension = typeof chrome !== 'undefined' && !!chrome.runtime?.getURL;
 const pageURL = (query) => (isExtension ? chrome.runtime.getURL(`popup.html?${query}`) : `${location.pathname}?${query}`);
 
@@ -1456,20 +1484,21 @@ $('#popout').addEventListener('click', async () => {
     window.open(url, 'fantasy-sweat', 'popup,width=500,height=820');
     return;
   }
-  const existingId = await store.get('popoutId');
-  if (existingId != null) {
-    try {
-      await chrome.windows.update(existingId, { focused: true });
+  // Already open? Find it by its page, not a saved window id — Chrome reuses window ids after a
+  // restart, so a saved id could point at some other window.
+  try {
+    const [open] = await chrome.runtime.getContexts({ contextTypes: ['TAB'], documentUrls: [url] });
+    if (open) {
+      await chrome.windows.update(open.windowId, { focused: true });
       if (MODE === 'popup') window.close();
       return;
-    } catch { /* that window was closed — open a new one */ }
-  }
+    }
+  } catch { /* couldn't check — just open a new one */ }
   const b = (await store.get('popoutBounds')) || {};
-  const win = await chrome.windows.create({
+  await chrome.windows.create({
     url, type: 'popup', width: b.width || 500, height: b.height || 820,
     ...(b.left != null ? { left: b.left, top: b.top } : {}),
   });
-  await store.set('popoutId', win.id);
   if (MODE === 'popup') window.close();
 });
 document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => {
@@ -1477,6 +1506,7 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
   store.set('view', view);
   render();
+  loadPlays();
 }));
 
 (async function init() {
@@ -1496,8 +1526,7 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   view = (await store.get('view')) || 'games';
   filter = (await store.get('filter')) || 'all';
   const savedLeagues = await store.get('leagues');
-  const oldPick = await store.get('league'); // single pick saved by older versions
-  selectedLeagues = Array.isArray(savedLeagues) ? savedLeagues : oldPick ? [oldPick] : [];
+  selectedLeagues = Array.isArray(savedLeagues) ? savedLeagues : [];
   nicknames = (await store.get('nicknames')) || {};
   teamNicks = (await store.get('teamNicks')) || {};
   hiddenLeagues = (await store.get('hiddenLeagues')) || [];
