@@ -1239,7 +1239,7 @@ function render() {
   $('#view').replaceChildren(
     (views[view] || renderGames)(scoped),
     h('div', { class: 'foot' }, 'Data: Sleeper API & Game Center plays · ESPN fantasy (ESPN leagues) · schedule & live scores: ESPN. Chips show which league (+ yours, − opponent’s).'));
-  $('#app').hidden = false;
+  $('#app').hidden = !$('#setup').hidden; // auto-refresh must not pop the dashboard up under Settings
   if (!model.games.some((g) => !g.none)) {
     setStatus('Couldn’t load the NFL schedule from ESPN — game times and live scores are missing for now.');
   }
