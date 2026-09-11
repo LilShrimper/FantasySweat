@@ -1,6 +1,6 @@
 # Fantasy Sweat
 
-A Chrome extension that pulls your Sleeper fantasy football matchups and tells you who to cheer for and who to root against, game by game, with live scores, win chances and play-by-play.
+A Chrome extension that pulls your Sleeper and ESPN fantasy football matchups and tells you who to cheer for and who to root against, game by game, with live scores, win chances and play-by-play.
 
 ## Features
 

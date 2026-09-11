@@ -25,10 +25,17 @@
   </header>
 
   <form id="setup" class="setup" hidden>
-    <label for="username">Sleeper username</label>
+    <label for="username">Sleeper username <span class="opt">(optional if you add an ESPN league)</span></label>
     <input id="username" autocomplete="off" spellcheck="false" placeholder="e.g. Rakii" maxlength="30"
-           pattern="[A-Za-z0-9_]+" title="Letters, numbers and underscores only" required>
+           pattern="[A-Za-z0-9_]+" title="Letters, numbers and underscores only">
     <div id="userHint" class="hint" hidden></div>
+    <div class="setup-h">ESPN leagues <span>— public leagues only for now</span></div>
+    <div id="espnList"></div>
+    <div class="row espn-add">
+      <input id="espnId" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="ESPN league ID (the number after leagueId=)">
+      <button type="button" id="espnAdd" class="ghost">Add</button>
+    </div>
+    <div id="espnHint" class="hint" hidden></div>
     <div id="nickSection" hidden>
       <div class="setup-h">League nicknames <span>— shown on player tags; leave blank for initials</span></div>
       <div id="nicks"></div>

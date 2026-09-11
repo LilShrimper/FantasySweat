@@ -5,6 +5,28 @@ const PROJ = 'https://api.sleeper.com/projections/nfl';
 const STATS = 'https://api.sleeper.com/stats/nfl';
 const POS_QS = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF', 'DL', 'LB', 'DB'].map((p) => `position[]=${p}`).join('&');
 const ESPN = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard';
+const ESPN_FANTASY = 'https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons';
+// ESPN's NFL team ids (the same ids its scoreboard uses), its positions, and its non-starting slots.
+const ESPN_TEAMS = {
+  1: 'ATL', 2: 'BUF', 3: 'CHI', 4: 'CIN', 5: 'CLE', 6: 'DAL', 7: 'DEN', 8: 'DET', 9: 'GB', 10: 'TEN',
+  11: 'IND', 12: 'KC', 13: 'LV', 14: 'LAR', 15: 'MIA', 16: 'MIN', 17: 'NE', 18: 'NO', 19: 'NYG', 20: 'NYJ',
+  21: 'PHI', 22: 'ARI', 23: 'PIT', 24: 'LAC', 25: 'SF', 26: 'SEA', 27: 'TB', 28: 'WAS', 29: 'CAR', 30: 'JAX',
+  33: 'BAL', 34: 'HOU',
+};
+const ESPN_POS = { 1: 'QB', 2: 'RB', 3: 'WR', 4: 'TE', 5: 'K', 16: 'DEF' };
+const ESPN_BENCH_SLOTS = new Set([20, 21]); // bench, IR
+// ESPN scoring stat ids → Sleeper stat keys, so Sleeper's play-by-play can be scored with an ESPN
+// league's rules on the Live plays tab. Points/yards-allowed tiers aren't per play, so they're left out.
+const ESPN_STAT_KEYS = {
+  3: ['pass_yd'], 4: ['pass_td'], 19: ['pass_2pt'], 20: ['pass_int'],
+  24: ['rush_yd'], 25: ['rush_td'], 26: ['rush_2pt'],
+  42: ['rec_yd'], 43: ['rec_td'], 44: ['rec_2pt'], 53: ['rec'],
+  63: ['fum_rec_td'], 72: ['fum_lost'],
+  74: ['fgm_50p'], 77: ['fgm_40_49'], 80: ['fgm_0_19', 'fgm_20_29', 'fgm_30_39'], 198: ['fgm_50_59'], 201: ['fgm_60p'],
+  85: ['fgmiss'], 86: ['xpm'], 88: ['xpmiss'],
+  93: ['def_td'], 94: ['def_td'], 95: ['int'], 96: ['fum_rec'], 97: ['blk_kick'], 98: ['safe'], 99: ['sack'],
+  103: ['def_td'], 104: ['def_td'],
+};
 const LEAGUE_COLORS = ['#6c8cff', '#f58b3d', '#c05cff', '#29b8d8', '#e8c547', '#ff6fae', '#7bd148', '#a0785a'];
 const TEAM_NAMES = {
   ARI: 'Arizona Cardinals', ATL: 'Atlanta Falcons', BAL: 'Baltimore Ravens', BUF: 'Buffalo Bills',
@@ -82,15 +104,17 @@ async function getProjections(season, week, seasonType) {
 // Full player list — the only place Sleeper has jersey numbers (also the name/team fallback for
 // starters with no projection row). It's ~15 MB, so we keep a slim copy and refetch once a day.
 async function getPlayerDump() {
-  const cached = await store.get('playerDump2');
+  const cached = await store.get('playerDump3');
   if (cached && Date.now() - cached.t < PLAYER_CACHE_MS) return cached.map;
   const all = await getJSON(`${SLEEPER}/players/nfl`);
   const map = {};
   for (const [id, p] of Object.entries(all)) {
-    map[id] = [p.first_name || '', p.last_name || '', p.position || '', p.team || null, p.injury_status || null, p.number ?? null];
+    map[id] = [p.first_name || '', p.last_name || '', p.position || '', p.team || null, p.injury_status || null,
+      p.number ?? null, p.espn_id ?? null];
   }
-  await store.set('playerDump2', { t: Date.now(), map });
-  store.set('playerDump', null); // old cache format without jersey numbers
+  await store.set('playerDump3', { t: Date.now(), map });
+  store.set('playerDump2', null); // older cache formats
+  store.set('playerDump', null);
   return map;
 }
 
@@ -135,6 +159,136 @@ async function queryPlays(season, seasonType, args) {
 }
 const getGamePlays = (season, seasonType, gameId) => queryPlays(season, seasonType, `game_id: "${gameId}"`);
 const getWeekPlays = (season, seasonType, week) => queryPlays(season, seasonType, `week: ${Number(week)}`);
+
+// ---------- ESPN leagues (public leagues; ESPN's own fantasy API, unofficial) ----------
+// This week's matchups with lineups, live points, projections and win probability, plus teams,
+// owners and scoring. The filter header trims the schedule to just this week.
+async function getEspnLeague(id, season, week) {
+  const url = `${ESPN_FANTASY}/${season}/segments/0/leagues/${id}?view=mMatchupScore&view=mBoxscore&view=mTeam&view=mSettings&scoringPeriodId=${Number(week)}`;
+  const res = await fetch(url, {
+    cache: 'no-store',
+    headers: { 'x-fantasy-filter': JSON.stringify({ schedule: { filterMatchupPeriodIds: { value: [Number(week)] } } }) },
+  });
+  if (res.status === 401 || res.status === 403) throw new Error('This ESPN league is private');
+  if (!res.ok) throw new Error(`${res.status} from ESPN`);
+  return res.json();
+}
+
+// League name + teams (with owners) for the Settings team picker.
+const espnMetaCache = {};
+async function getEspnMeta(id) {
+  if (espnMetaCache[id]) return espnMetaCache[id];
+  const season = current?.state.season || (await getState()).season;
+  const res = await fetch(`${ESPN_FANTASY}/${season}/segments/0/leagues/${id}?view=mTeam&view=mSettings`, { cache: 'no-store' });
+  if (res.status === 401 || res.status === 403) throw new Error('private');
+  if (!res.ok) throw new Error(res.status === 404 ? 'notfound' : `HTTP ${res.status}`);
+  const d = await res.json();
+  const members = d.members || [];
+  return (espnMetaCache[id] = {
+    name: d.settings?.name || `ESPN league ${id}`,
+    teams: (d.teams || [])
+      .map((t) => ({ id: t.id, name: espnTeamName(t), owner: members.find((m) => m.id === t.owners?.[0])?.displayName || '' }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  });
+}
+
+const espnTeamName = (t) => (t?.name || `${t?.location || ''} ${t?.nickname || ''}`).trim() || 'Team';
+
+// ESPN scoring rules → Sleeper-style { stat_key: points } (D/ST values use ESPN's D/ST overrides).
+function espnScoring(items = []) {
+  const out = {};
+  for (const it of items) {
+    const keys = ESPN_STAT_KEYS[it.statId];
+    if (!keys) continue;
+    const isDef = it.statId >= 89 && it.statId < 198;
+    const pts = isDef ? (it.pointsOverrides?.['16'] ?? it.points) : it.points;
+    for (const k of keys) out[k] = pts;
+  }
+  return out;
+}
+
+// Match an ESPN player to a Sleeper player id: ESPN id when Sleeper has it, else name + team (+ position).
+// Team defenses are keyed by team abbreviation in Sleeper, e.g. "PIT".
+let espnIndex = null;
+const normName = (s) => String(s || '').toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g, '').replace(/[^a-z]/g, '');
+function sleeperIdFor(p, dump) {
+  const team = ESPN_TEAMS[p.proTeamId] || null;
+  const pos = ESPN_POS[p.defaultPositionId] || null;
+  if (pos === 'DEF') return team;
+  if (!dump) return null;
+  if (espnIndex?.dump !== dump) {
+    const byEspn = {}, byName = {}, byNameTeam = {};
+    for (const [id, d] of Object.entries(dump)) {
+      if (d[6] != null) byEspn[d[6]] = id;
+      if (!d[3]) continue;
+      const n = normName(d[0] + ' ' + d[1]);
+      byName[`${n}|${d[3]}|${d[2]}`] ??= id;
+      byNameTeam[`${n}|${d[3]}`] ??= id;
+    }
+    espnIndex = { dump, byEspn, byName, byNameTeam };
+  }
+  const n = normName(p.fullName);
+  return espnIndex.byEspn[p.id] || espnIndex.byName[`${n}|${team}|${pos}`] || espnIndex.byNameTeam[`${n}|${team}`] || null;
+}
+
+// Shape one ESPN league like a Sleeper one ({ league, me, opp }) so the rest of the app treats them alike.
+function espnLeagueData(d, cfg, week, dump, extraInfo) {
+  const league = {
+    league_id: `espn:${cfg.id}`,
+    name: d.settings?.name || `ESPN league ${cfg.id}`,
+    scoring_settings: espnScoring(d.settings?.scoringSettings?.scoringItems),
+    espn: true,
+  };
+  const teams = d.teams || [];
+  const team = teams.find((t) => t.id === Number(cfg.teamId));
+  if (!team) return { league, skip: 'Pick your team in Settings ⚙' };
+  const m = (d.schedule || []).find((x) => x.matchupPeriodId === Number(week) && (x.home?.teamId === team.id || x.away?.teamId === team.id));
+  if (!m) return { league, skip: 'No matchup this week' };
+  const mine = m.home?.teamId === team.id ? m.home : m.away;
+  const theirs = m.home?.teamId === team.id ? m.away : m.home;
+  if (!theirs) return { league, skip: 'Bye week (no opponent)' };
+
+  // Standings: wins (ties = half) first, then points for. No places until a game is final.
+  const rec = (t) => t?.record?.overall || {};
+  const anyPlayed = teams.some((t) => (rec(t).wins || 0) + (rec(t).losses || 0) + (rec(t).ties || 0) > 0);
+  const ranked = [...teams].sort((a, b) => {
+    const A = rec(a), B = rec(b);
+    return ((B.wins || 0) + (B.ties || 0) / 2) - ((A.wins || 0) + (A.ties || 0) / 2) || (B.pointsFor || 0) - (A.pointsFor || 0);
+  });
+
+  const side = (s) => {
+    const t = teams.find((x) => x.id === s.teamId) || {};
+    const owner = (d.members || []).find((mm) => mm.id === t.owners?.[0] || mm.id === t.primaryOwner);
+    const r = rec(t);
+    const starters = [], players_points = {}, projMap = {};
+    for (const e of s.rosterForCurrentScoringPeriod?.entries || []) {
+      if (ESPN_BENCH_SLOTS.has(e.lineupSlotId)) continue;
+      const p = e.playerPoolEntry?.player;
+      if (!p) continue;
+      const pos = ESPN_POS[p.defaultPositionId] || '?';
+      const nfl = ESPN_TEAMS[p.proTeamId] || null;
+      const pid = sleeperIdFor(p, dump) || `espn:${p.id}`;
+      extraInfo[pid] ??= { name: shortName(p.firstName, p.lastName, pos, nfl, pid), pos, team: nfl, inj: null, num: null };
+      const stat = (src) => (p.stats || []).find((x) => x.scoringPeriodId === Number(week) && x.statSourceId === src && x.statSplitTypeId === 1);
+      starters.push(pid);
+      players_points[pid] = e.playerPoolEntry.appliedStatTotal ?? stat(0)?.appliedTotal ?? 0;
+      projMap[pid] = stat(1)?.appliedTotal ?? 0;
+    }
+    return {
+      m: { starters, players_points, points: s.totalPointsLive ?? s.totalPoints ?? 0 },
+      projMap,
+      name: espnTeamName(t),
+      user: owner?.displayName || '',
+      custom: !!owner?.displayName,
+      record: `${r.wins || 0}-${r.losses || 0}${r.ties ? `-${r.ties}` : ''}`,
+      place: anyPlayed ? ranked.findIndex((x) => x.id === t.id) + 1 : null,
+      of: teams.length,
+      espnProj: s.totalProjectedPointsLive ?? s.totalProjectedPoints ?? 0,
+      espnWin: s.winProbability,
+    };
+  };
+  return { league, me: side(mine), opp: side(theirs), skip: null, espnFinal: !!m.winner && m.winner !== 'UNDECIDED' };
+}
 
 const normTeam = (abbr) => ({ WSH: 'WAS' })[abbr] || abbr;
 
@@ -231,7 +385,7 @@ function shortName(first, last, pos, team, pid) {
   return first ? `${first[0]}. ${last}` : last || `Player ${pid}`;
 }
 
-function playerInfo(pid, proj, dump) {
+function playerInfo(pid, proj, dump, extra) {
   const pr = proj[pid];
   const d = dump?.[pid];
   const num = d?.[5] ?? null; // jersey number (only in the full player list)
@@ -241,6 +395,7 @@ function playerInfo(pid, proj, dump) {
     return { name: shortName(p.first_name, p.last_name, p.position, team, pid), pos: p.position, team, inj: p.injury_status, num };
   }
   if (d) return { name: shortName(d[0], d[1], d[2], d[3], pid), pos: d[2], team: d[3], inj: d[4], num };
+  if (extra?.[pid]) return extra[pid]; // ESPN player we couldn't match to Sleeper
   if (/^[A-Z]{2,3}$/.test(pid)) return { name: `${pid} D/ST`, pos: 'DEF', team: pid, inj: null, num: null };
   return { name: `Player ${pid}`, pos: '?', team: null, inj: null, num: null };
 }
@@ -248,20 +403,27 @@ function playerInfo(pid, proj, dump) {
 async function loadAll(username, weekOverride) {
   const state = await getState();
   const week = weekOverride || state.week;
-  const user = await getJSON(`${SLEEPER}/user/${encodeURIComponent(username)}`);
-  if (!user?.user_id) throw new Error(`Couldn't find a Sleeper user named "${username}".`);
-
-  const allLeagues = (await getJSON(`${SLEEPER}/user/${user.user_id}/leagues/nfl/${state.season}`)) || [];
-  const leagues = allLeagues.filter((l) => !['pre_draft', 'drafting'].includes(l.status));
+  // Sleeper is optional — someone with only ESPN leagues leaves the username blank.
+  let user = null;
+  let leagues = [];
+  if (username) {
+    user = await getJSON(`${SLEEPER}/user/${encodeURIComponent(username)}`);
+    if (!user?.user_id) throw new Error(`Couldn't find a Sleeper user named "${username}".`);
+    const allLeagues = (await getJSON(`${SLEEPER}/user/${user.user_id}/leagues/nfl/${state.season}`)) || [];
+    leagues = allLeagues.filter((l) => !['pre_draft', 'drafting'].includes(l.status));
+  }
 
   // Season points ranks only mean something once Week 1 is done; until then use the preseason PPR rank.
   const useSeasonRanks = state.week > 1 || state.seasonType === 'post';
-  const [proj, games, leagueData, dump, seasonRanks] = await Promise.all([
+  const [proj, games, leagueData, dump, seasonRanks, espnRaw] = await Promise.all([
     getProjections(state.season, week, state.seasonType).catch(() => ({})),
     getGames(state.season, week, state.seasonType).catch(() => ({})),
     Promise.all(leagues.map((l) => loadLeague(l, user.user_id, week).catch((e) => ({ league: l, skip: e.message })))),
     getPlayerDump().catch(() => null),
     useSeasonRanks ? getSeasonRanks(state.season, state.seasonType).catch(() => null) : null,
+    Promise.all(espnLeagues.map((c) => getEspnLeague(c.id, state.season, week)
+      .then((d) => ({ c, d }))
+      .catch((e) => ({ c, err: e.message })))),
   ]);
 
   let ranks = { map: seasonRanks || {}, season: !!seasonRanks };
@@ -272,7 +434,12 @@ async function loadAll(username, weekOverride) {
     }
   }
 
-  return { state, week, user, model: buildModel(leagueData, proj, dump, games, ranks) };
+  const extraInfo = {}; // names for ESPN players we couldn't match to a Sleeper player
+  const espnData = espnRaw.map(({ c, d, err }) => (err
+    ? { league: { league_id: `espn:${c.id}`, name: espnMetaCache[c.id]?.name || `ESPN league ${c.id}`, espn: true }, skip: err }
+    : espnLeagueData(d, c, week, dump, extraInfo)));
+
+  return { state, week, user, model: buildModel([...leagueData, ...espnData], proj, dump, games, ranks, extraInfo) };
 }
 
 // ---------- the actual "who do I cheer for" logic ----------
@@ -334,30 +501,31 @@ function normalCdf(z) {
 // Total projected fantasy points riding on a set of players (every league, both sides).
 const projStakeOf = (players) => players.reduce((s, p) => s + p.legs.reduce((t, l) => t + l.proj, 0), 0);
 
-function buildModel(leagueData, proj, dump, games, ranks) {
+function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
   const players = new Map();
   const leagues = leagueData.map((ld, i) => ({ ...ld, color: LEAGUE_COLORS[i % LEAGUE_COLORS.length] }));
 
   for (const ld of leagues) {
     if (!ld.me) continue;
-    const addSide = (matchup, side) => {
+    // ESPN sides bring their own projections (ESPN's numbers); Sleeper ones are scored from stats.
+    const addSide = (matchup, side, projMap) => {
       const pts = matchup.players_points || {};
       for (const pid of matchup.starters || []) {
         if (!pid || pid === '0') continue; // empty lineup slot
         let pl = players.get(pid);
         if (!pl) players.set(pid, (pl = { pid, legs: [], net: 0, impact: 0 }));
-        const pj = leagueProj(proj[pid]?.stats, ld.league.scoring_settings);
+        const pj = projMap ? (projMap[pid] ?? 0) : leagueProj(proj[pid]?.stats, ld.league.scoring_settings);
         pl.legs.push({ ld, side, pts: pts[pid] ?? 0, proj: pj });
         pl.net += side;
         pl.impact += side * Math.max(pj, 1); // weight by projection; unprojected guys still count a little
       }
     };
-    addSide(ld.me.m, +1);
-    if (ld.opp) addSide(ld.opp.m, -1);
+    addSide(ld.me.m, +1, ld.me.projMap);
+    if (ld.opp) addSide(ld.opp.m, -1, ld.opp.projMap);
   }
 
   for (const pl of players.values()) {
-    pl.info = playerInfo(pl.pid, proj, dump);
+    pl.info = playerInfo(pl.pid, proj, dump, extraInfo);
     pl.rank = ranks?.map[pl.pid] ?? null;
     pl.game = games[pl.info.team] || null;
     pl.verdict = pl.net > 0 ? 'cheer' : pl.net < 0 ? 'boo' : 'hedge';
@@ -369,6 +537,20 @@ function buildModel(leagueData, proj, dump, games, ranks) {
   // (or his points so far when that comes out 0/NaN, e.g. a bye), then Sleeper's win formula.
   for (const ld of leagues) {
     if (!ld.me) continue;
+    if (ld.league.espn) {
+      // ESPN leagues: ESPN's own live projections and win probability, so cards match the ESPN app.
+      ld.me.proj = ld.me.espnProj;
+      if (!ld.opp) continue;
+      ld.opp.proj = ld.opp.espnProj;
+      const open = (m) => (m.starters || []).some((pid) => {
+        const g = players.get(pid)?.game;
+        return g && g.state !== 'post';
+      });
+      ld.final = ld.espnFinal || (!open(ld.me.m) && !open(ld.opp.m));
+      const [a, b] = [ld.me.m.points, ld.opp.m.points];
+      ld.winPct = ld.final ? (a > b ? 1 : a < b ? 0 : 0.5) : (ld.me.espnWin ?? 0.5);
+      continue;
+    }
     const scoring = ld.league.scoring_settings;
     const project = (m) => {
       let current = 0, total = 0, open = 0;
@@ -878,6 +1060,8 @@ let activeFilter = 'all';  // what's applied — falls back to 'all' if that win
 let windowsByKey = {};
 let selectedLeagues = [];  // league_ids picked on the cards (empty = all leagues)
 let nicknames = {};        // league_id → short name shown on player tags
+let espnLeagues = [];      // [{ id, teamId }] — ESPN leagues from Settings
+let espnDraft = [];        // the same list while Settings is open (saved on Save)
 let refreshTimer = null;
 
 // Re-run the cheer/boo math using only the picked leagues' matchups; drops games with nothing at stake there.
@@ -983,7 +1167,7 @@ function render() {
   if (!current) return;
   const { model, week, user } = current;
   const anyLive = model.games.some((g) => g.state === 'in');
-  $('#sub').textContent = `@${user.display_name} · Week ${week} · updated ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${anyLive ? ' · LIVE' : ''}`;
+  $('#sub').textContent = `${user ? `@${user.display_name} · ` : ''}Week ${week} · updated ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${anyLive ? ' · LIVE' : ''}`;
   // Keep only picks that have a matchup this week; picking every league is the same as no filter.
   const selectable = model.leagues.filter((ld) => ld.opp);
   const picked = selectable.filter((ld) => selectedLeagues.includes(ld.league.league_id));
@@ -1005,7 +1189,7 @@ function render() {
   const views = { games: renderGames, players: renderPlayers, teams: renderTeams, plays: renderPlays };
   $('#view').replaceChildren(
     (views[view] || renderGames)(scoped),
-    h('div', { class: 'foot' }, 'Data: Sleeper API & Game Center plays · schedule & live scores: ESPN. Chips show which league (+ yours, − opponent’s).'));
+    h('div', { class: 'foot' }, 'Data: Sleeper API & Game Center plays · ESPN fantasy (ESPN leagues) · schedule & live scores: ESPN. Chips show which league (+ yours, − opponent’s).'));
   $('#app').hidden = false;
 }
 
@@ -1014,7 +1198,7 @@ const cleanUsername = (v) => String(v || '').replace(/[^A-Za-z0-9_]/g, '');
 
 async function refresh() {
   const username = cleanUsername(await store.get('username')); // also fixes a saved "@name"
-  if (!username) return showSetup();
+  if (!username && !espnLeagues.length) return showSetup();
   const btn = $('#refresh');
   btn.innerHTML = '<span class="spin">↻</span>';
   if (!current) setStatus('Loading your matchups…');
@@ -1075,7 +1259,52 @@ async function showSetup() {
     return h('label', { class: 'nick-row', style: `--lc:${ld.color}` },
       h('span', { class: 'nick-name', title: ld.league.name }, ld.league.name), input, preview);
   }));
+  // ESPN leagues: one row per league with a "which team is yours" picker.
+  espnDraft = espnLeagues.map((l) => ({ ...l }));
+  $('#espnId').value = '';
+  $('#espnHint').hidden = true;
+  renderEspnRows();
   $('#username').focus();
+}
+
+function renderEspnRows() {
+  $('#espnList').replaceChildren(...espnDraft.map((l, i) => {
+    const name = h('span', { class: 'nick-name' }, `ESPN league ${l.id}`);
+    const select = h('select', { class: 'espn-team', title: 'Which team is yours?' }, h('option', { value: '' }, 'Loading teams…'));
+    select.addEventListener('change', () => { espnDraft[i].teamId = select.value ? Number(select.value) : null; });
+    getEspnMeta(l.id).then((meta) => {
+      name.textContent = meta.name;
+      name.title = meta.name;
+      select.replaceChildren(
+        h('option', { value: '' }, '— pick your team —'),
+        ...meta.teams.map((t) => h('option', { value: t.id }, t.owner ? `${t.name} (${t.owner})` : t.name)));
+      select.value = l.teamId != null ? String(l.teamId) : '';
+    }).catch(() => select.replaceChildren(h('option', { value: '' }, 'Couldn’t load teams')));
+    const remove = h('button', {
+      type: 'button', class: 'ghost x', title: 'Remove this league',
+      onclick: () => { espnDraft.splice(i, 1); renderEspnRows(); },
+    }, '✕');
+    return h('div', { class: 'espn-row' }, name, select, remove);
+  }));
+}
+
+async function addEspnLeague() {
+  const id = $('#espnId').value.replace(/\D/g, '');
+  const say = (msg) => { $('#espnHint').textContent = msg; $('#espnHint').hidden = !msg; };
+  if (!id) return say('Enter the number after "leagueId=" in the league’s ESPN web address.');
+  if (espnDraft.some((l) => l.id === id)) return say('That league is already added.');
+  say('Checking the league…');
+  try {
+    await getEspnMeta(id);
+    espnDraft.push({ id, teamId: null });
+    $('#espnId').value = '';
+    say('');
+    renderEspnRows();
+  } catch (e) {
+    say(e.message === 'private'
+      ? 'That league is private. Only public ESPN leagues work for now — the commissioner can make it viewable to the public in the league’s settings.'
+      : e.message === 'notfound' ? 'No ESPN league with that ID this season.' : 'Couldn’t reach ESPN — try again.');
+  }
 }
 
 function hideSetup() {
@@ -1086,11 +1315,16 @@ function hideSetup() {
 $('#setup').addEventListener('submit', async (e) => {
   e.preventDefault();
   const name = cleanUsername($('#username').value);
-  if (!name) {
-    $('#userHint').textContent = 'Enter your Sleeper username (letters, numbers and _ only).';
+  if (!name && !espnDraft.some((l) => l.teamId != null)) {
+    $('#userHint').textContent = espnDraft.length
+      ? 'Pick your team in the ESPN league below, or enter a Sleeper username.'
+      : 'Enter your Sleeper username, or add an ESPN league below.';
     $('#userHint').hidden = false;
     return;
   }
+  const espnChanged = JSON.stringify(espnDraft) !== JSON.stringify(espnLeagues);
+  espnLeagues = espnDraft.map((l) => ({ id: l.id, teamId: l.teamId }));
+  await store.set('espnLeagues', espnLeagues);
   const next = { ...nicknames };
   document.querySelectorAll('#nicks .nick').forEach((input) => {
     const v = input.value.trim();
@@ -1102,7 +1336,7 @@ $('#setup').addEventListener('submit', async (e) => {
   const userChanged = name !== (await store.get('username'));
   await store.set('username', name);
   hideSetup();
-  if (userChanged || !current) {
+  if (userChanged || espnChanged || !current) {
     current = null;
     refresh();
   } else {
@@ -1110,6 +1344,11 @@ $('#setup').addEventListener('submit', async (e) => {
   }
 });
 $('#cancelSetup').addEventListener('click', hideSetup);
+$('#espnAdd').addEventListener('click', addEspnLeague);
+$('#espnId').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, ''); });
+$('#espnId').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); addEspnLeague(); } // don't submit the whole form
+});
 // Block special characters as they're typed/pasted, and say why.
 $('#username').addEventListener('input', (e) => {
   const el = e.target;
@@ -1181,6 +1420,7 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   const oldPick = await store.get('league'); // single pick saved by older versions
   selectedLeagues = Array.isArray(savedLeagues) ? savedLeagues : oldPick ? [oldPick] : [];
   nicknames = (await store.get('nicknames')) || {};
+  espnLeagues = (await store.get('espnLeagues')) || [];
   $('#leagueChip').addEventListener('click', () => {
     selectedLeagues = [];
     store.set('leagues', []);
