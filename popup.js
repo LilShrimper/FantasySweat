@@ -1249,14 +1249,19 @@ function render() {
 // Sleeper usernames are letters, numbers and underscores — strips "@", spaces, etc.
 const cleanUsername = (v) => String(v || '').replace(/[^A-Za-z0-9_]/g, '');
 
+let refreshSeq = 0; // only the newest refresh may update the page
+
 async function refresh() {
   const username = cleanUsername(await store.get('username')); // also fixes a saved "@name"
   if (!username && !espnLeagues.length) return showSetup();
+  const seq = ++refreshSeq;
   const btn = $('#refresh');
   btn.innerHTML = '<span class="spin">↻</span>';
   if (!current) setStatus('Loading your matchups…');
   try {
-    current = await loadAll(username, pickedWeek);
+    const data = await loadAll(username, pickedWeek);
+    if (seq !== refreshSeq) return; // a newer refresh (e.g. another week) started meanwhile — it wins
+    current = data;
     fillWeeks(current.state.week, current.week);
     setStatus('');
     render();
@@ -1264,9 +1269,10 @@ async function refresh() {
     const cur = current;
     updatePlays(cur).then(() => { if (cur === current && view === 'plays') render(); }).catch(() => {});
   } catch (e) {
+    if (seq !== refreshSeq) return;
     setStatus(`Couldn't load: ${e.message}`, true);
   } finally {
-    btn.textContent = '↻';
+    if (seq === refreshSeq) btn.textContent = '↻';
   }
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(refresh, nextRefreshDelay());
