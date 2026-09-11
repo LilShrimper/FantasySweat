@@ -898,7 +898,9 @@ function renderMustWatch(model) {
 }
 
 // ---------- live plays ----------
-let playsCache = null;  // { key, games: { [sleeperGameId]: { final, plays: { [playId]: play } } } } — saved per week
+// { key, games: { [sleeperGameId]: { final, plays: { [playId]: play } } } } — only the week on screen is
+// saved (~1 MB a week), since Live plays only shows games in progress; older weeks are dropped.
+let playsCache = null;
 let playGameIds = null; // ESPN game id → Sleeper game id for the games we pull plays from
 const PLAY_KEEP = 300;  // plays kept per game
 const PLAYS_SHOWN = 15; // Live plays is a snapshot: latest plays per column, not the full history
@@ -924,12 +926,14 @@ const playsBackfilled = new Set(); // week keys whose full history we've pulled 
 
 // Plays for every started game with one of your (or your opponents') starters. The first pull after
 // opening grabs the whole week in one request (every play so far); after that, only the latest 20 of
-// games still going — refreshes are 30s apart, far less than 20 plays. Saved per week.
+// games still going — refreshes are 30s apart, far less than 20 plays. Only this week is saved.
 async function updatePlays(cur) {
   const { state, week, model } = cur;
   const key = `plays-${state.season}-${state.seasonType}-${week}`;
   if (playsCache?.key !== key) {
-    playsCache = (await store.get(key)) || { key, games: {} };
+    const saved = await store.get('plays');
+    playsCache = saved?.key === key ? saved : { key, games: {} };
+    if (playsCache !== saved) playsBackfilled.delete(key); // nothing saved for this week: pull it all again
     playGameIds = null;
   }
   const sched = await getSleeperSchedule(state.season, state.seasonType).catch(() => []);
@@ -978,7 +982,7 @@ async function updatePlays(cur) {
     pulled = live.length > 0;
   }
   playGameIds = ids;
-  if (pulled) await store.set(key, playsCache);
+  if (pulled) await store.set('plays', playsCache);
 }
 
 const signed = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + fmtPts(Math.abs(n));
