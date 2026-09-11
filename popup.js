@@ -1101,6 +1101,7 @@ let hiddenLeagues = [];    // league_ids unchecked in Settings — left out of e
 let espnLeagues = [];      // [{ id, teamId }] — ESPN leagues from Settings
 let espnDraft = [];        // the same list while Settings is open (saved on Save)
 let refreshTimer = null;
+let pickedWeek = null;     // week chosen in the dropdown; null = follow the NFL's current week
 
 // Re-run the cheer/boo math using only the picked leagues' matchups; drops games with nothing at stake there.
 // keepAll (for leagues hidden in Settings): keep every game, so the rest looks just like "all leagues".
@@ -1255,8 +1256,7 @@ async function refresh() {
   btn.innerHTML = '<span class="spin">↻</span>';
   if (!current) setStatus('Loading your matchups…');
   try {
-    const weekSel = Number($('#week').value) || null;
-    current = await loadAll(username, weekSel);
+    current = await loadAll(username, pickedWeek);
     fillWeeks(current.state.week, current.week);
     setStatus('');
     render();
@@ -1280,10 +1280,14 @@ function nextRefreshDelay() {
   return Math.max(LIVE_REFRESH_MS, Math.min(IDLE_REFRESH_MS, untilKickoff));
 }
 
+// Rebuilt when the NFL week rolls over (a popout left open over Tuesday), so the • moves too.
 function fillWeeks(currentWeek, selected) {
   const sel = $('#week');
-  if (sel.options.length) { sel.value = String(selected); return; }
-  for (let w = 1; w <= 18; w++) sel.append(h('option', { value: w }, `Wk ${w}${w === currentWeek ? ' •' : ''}`));
+  if (sel.dataset.current !== String(currentWeek)) {
+    sel.replaceChildren(...Array.from({ length: 18 }, (_, i) =>
+      h('option', { value: i + 1 }, `Wk ${i + 1}${i + 1 === currentWeek ? ' •' : ''}`)));
+    sel.dataset.current = currentWeek;
+  }
   sel.value = String(selected);
 }
 
@@ -1444,7 +1448,13 @@ $('#username').addEventListener('input', (e) => {
 });
 $('#settings').addEventListener('click', () => ($('#setup').hidden ? showSetup() : hideSetup()));
 $('#refresh').addEventListener('click', refresh);
-$('#week').addEventListener('change', () => { current = null; refresh(); });
+$('#week').addEventListener('change', (e) => {
+  // Picking the current week means "follow along", so a popout left open moves on to next week by itself.
+  const w = Number(e.target.value);
+  pickedWeek = w === Number(e.target.dataset.current) ? null : w;
+  current = null;
+  refresh();
+});
 const isExtension = typeof chrome !== 'undefined' && !!chrome.runtime?.getURL;
 const pageURL = (query) => (isExtension ? chrome.runtime.getURL(`popup.html?${query}`) : `${location.pathname}?${query}`);
 
