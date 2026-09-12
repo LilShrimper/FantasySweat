@@ -769,7 +769,7 @@ const splitSides = (players) => ({
   hedge: players.filter((p) => p.verdict === 'hedge').sort(byPointsDesc),
 });
 
-// Cheer / root-against columns (+ a full-width "both sides" row when needed), from splitSides().
+// Cheer / root-against columns (+ a full-width "coin flip" row when needed), from splitSides().
 function sideColumns({ cheer, boo, hedge }, { hideEmpty = false } = {}) {
   const col = (cls, label, list) => h('div', { class: `col ${cls}` },
     h('h4', null, label),
@@ -779,14 +779,14 @@ function sideColumns({ cheer, boo, hedge }, { hideEmpty = false } = {}) {
     : [col('cheer', '▲ Cheer for', cheer), col('boo', '▼ Root against', boo)];
   return h('div', { class: `cols ${main.length === 1 ? 'one' : ''}` },
     main,
-    hedge.length ? col('hedge span', '↔ Both sides', hedge) : null);
+    hedge.length ? col('hedge span', '↔ Coin flip', hedge) : null);
 }
 
 function tally({ cheer, boo, hedge }) {
   return h('div', { class: 'tally' },
     cheer.length ? h('span', { class: 'c' }, `${cheer.length} for`) : null,
     boo.length ? h('span', { class: 'b' }, `${boo.length} against`) : null,
-    hedge.length ? h('span', { class: 'h' }, `${hedge.length} both`) : null);
+    hedge.length ? h('span', { class: 'h' }, `${hedge.length} coin flip`) : null);
 }
 
 const emptyFiltered = (msg = 'No games match this filter right now.') => h('div', { class: 'status' }, msg);
@@ -890,7 +890,7 @@ function renderPlayers(model) {
   return h('div', { class: 'pcols' },
     list('cheer', '▲ Cheer for', cheer, `(${cheer.length})`),
     list('boo', '▼ Root against', boo, `(${boo.length})`),
-    hedge.length ? list('hedge', '↔ Both sides', hedge, '(on your team in one league, opponent’s in another)') : null);
+    hedge.length ? list('hedge', '↔ Coin flip', hedge, '(on your team in one league, opponent’s in another)') : null);
 }
 
 function renderMustWatch(model) {
@@ -1193,7 +1193,7 @@ function fillFilter(model, scoped = model) {
     if (!list.length) return `${name} — no games`;
     const ids = new Set(list.map((g) => g.id));
     const ps = scoped.players.filter((p) => p.game && ids.has(p.game.id));
-    // Players on both sides (yours in one league, an opponent's in another) count toward both numbers.
+    // Coin-flip players (yours in one league, an opponent's in another) count toward both numbers.
     const count = (v) => ps.filter((p) => p.verdict === v).length;
     const forYou = count('cheer') + count('hedge');
     const against = count('boo') + count('hedge');
