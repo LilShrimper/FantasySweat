@@ -626,6 +626,9 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
 // ---------- rendering ----------
 const fmtPts = (n) => String(+(+n || 0).toFixed(2)); // 31.80 → "31.8", 9.00 → "9", 128.21 → "128.21"
 const fmt1 = (n) => (Math.round(n * 10) / 10).toFixed(1);
+// Points and projections, to the hundredth — but only when it isn't 0, so they read like Sleeper's:
+// 129.89 → "129.89", 134.02 → "134.02", 134.10 → "134.1", 134.00 → "134.0"
+const fmt2 = (n) => (Math.round((+n || 0) * 100) / 100).toFixed(2).replace(/0$/, '');
 const initials = (name) => {
   const words = name.replace(/[^\p{L}\p{N}\s&]/gu, '').split(/\s+/).filter(Boolean);
   return (words.length > 1 ? words.map((w) => w[0]).join('') : words[0] || '?').slice(0, 3).toUpperCase();
@@ -700,13 +703,13 @@ function leagueCard(ld) {
       h('div', { class: 'side' },
         who(me), standing(me),
         h('span', { class: 'pts', style: `color:${color}` }, fmtPts(me.m.points)), ' ',
-        h('span', { class: 'pj' }, `proj ${fmt1(me.proj)}`)),
+        h('span', { class: 'pj' }, `proj ${fmt2(me.proj)}`)),
       h('div', { class: 'mid' },
         h('span', { class: 'vs' }, 'vs'),
         h('span', { class: 'pct', style: `color:${color}`, title: 'Your estimated chance to win' }, `${Math.round(p * 100)}%`)),
       h('div', { class: 'side r' },
         who(opp), standing(opp),
-        h('span', { class: 'pj' }, `proj ${fmt1(opp.proj)}`), ' ',
+        h('span', { class: 'pj' }, `proj ${fmt2(opp.proj)}`), ' ',
         h('span', { class: 'pts', style: `color:${winColor(1 - p)}` }, fmtPts(opp.m.points)))), // their side of the odds
     h('div', { class: 'bar', title: `Win chance ${Math.round(p * 100)}%` }, h('i', { style: `width:${(p * 100).toFixed(1)}%` })));
 }
@@ -747,8 +750,8 @@ function playerRow(pl, { showGame = false } = {}) {
         injBadge(pl.info.inj), chips,
         gameText && h('span', null, gameText))),
     h('div', { class: `pl-pts ${g?.state === 'in' ? 'live' : ''} ${started ? '' : 'pre'}` },
-      h('span', { class: 'v', title: 'Live fantasy points' }, fmt1(pl.ptsShown)),
-      h('span', { class: 'p' }, `proj ${fmt1(pl.projShown)}`)));
+      h('span', { class: 'v', title: 'Live fantasy points' }, fmt2(pl.ptsShown)),
+      h('span', { class: 'p' }, `proj ${fmt2(pl.projShown)}`)));
 }
 
 const rankTitle = (pl) => {
