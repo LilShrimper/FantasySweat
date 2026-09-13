@@ -1283,6 +1283,7 @@ function render() {
   const picked = selectable.filter((ld) => selectedLeagues.includes(ld.league.league_id));
   selectedLeagues = picked.length && picked.length < selectable.length ? picked.map((ld) => ld.league.league_id) : [];
   const scoped = scopeToLeague(model, selectedLeagues);
+  lastPlays = latestPlays(scoped); // each player's latest scoring play, for the rows drawn below
 
   $('#leagues').replaceChildren(...model.leagues.map(leagueCard));
   if (!model.leagues.length) {
@@ -1300,7 +1301,6 @@ function render() {
   }
   fillFilter(model, scoped);
   renderMustWatch(scoped);
-  lastPlays = latestPlays(scoped);
   const views = { games: renderGames, players: renderPlayers, teams: renderTeams, plays: renderPlays };
   $('#view').replaceChildren(
     (views[view] || renderGames)(scoped),
