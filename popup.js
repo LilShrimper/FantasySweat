@@ -1938,6 +1938,19 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   if (current && Date.now() - lastRefreshStart >= TAB_REFRESH_LOCKOUT_MS) refresh();
 }));
 
+// An unpacked copy (loaded from a local folder for testing) says DEV — on its toolbar icon and next to the
+// title — so it can't be mistaken for the store version. Chrome only adds update_url to store installs,
+// so the store copy never shows it. The badge is set when this copy first opens and lasts until Chrome quits.
+function markDevCopy() {
+  if (typeof chrome === 'undefined' || !chrome.runtime?.getManifest || chrome.runtime.getManifest().update_url) return;
+  $('#devTag').hidden = false;
+  try {
+    chrome.action.setBadgeText({ text: 'DEV' });
+    chrome.action.setBadgeBackgroundColor({ color: '#f5b942' });
+    chrome.action.setBadgeTextColor?.({ color: '#0f1420' });
+  } catch { /* no toolbar button to badge */ }
+}
+
 (async function init() {
   if (MODE === 'full') {
     document.body.classList.add('full');
@@ -1977,6 +1990,7 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   });
   document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x.dataset.view === view));
   showVersion();
+  markDevCopy();
   checkForUpdate(); // at most every 3 hours; a newer version found before still shows
   refresh();
 })();
