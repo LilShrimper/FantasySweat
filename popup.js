@@ -44,6 +44,7 @@ const TEAM_NAMES = {
 };
 const LIVE_REFRESH_MS = 30_000;
 const IDLE_REFRESH_MS = 5 * 60_000;
+const TAB_REFRESH_LOCKOUT_MS = 10_000; // switching tabs refreshes, but not within 10 s of the last refresh
 const PLAYER_CACHE_MS = 24 * 3600_000;
 
 // ---------- storage (chrome.storage when running as an extension, localStorage otherwise) ----------
@@ -1483,8 +1484,10 @@ function render() {
 const cleanUsername = (v) => String(v || '').replace(/[^A-Za-z0-9_]/g, '');
 
 let refreshSeq = 0; // only the newest refresh may update the page
+let lastRefreshStart = 0; // when the latest refresh began, for the tab-switch lockout
 
 async function refresh() {
+  lastRefreshStart = Date.now(); // before any await, so two quick tab clicks can't both start one
   const username = cleanUsername(await store.get('username')); // also fixes a saved "@name"
   if (!username && !espnLeagues.length) return showSetup();
   const seq = ++refreshSeq;
@@ -1769,7 +1772,10 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   view = b.dataset.view;
   document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
   store.set('view', view);
-  render(); // plays are already pulled on every refresh
+  render(); // show the tab straight away with what's loaded…
+  // …then fetch fresh scores, so a tab you come back to isn't a refresh behind what Live plays showed.
+  // Skipped within 10 s of the last refresh (or while one is loading), so flipping tabs can't spam requests.
+  if (current && Date.now() - lastRefreshStart >= TAB_REFRESH_LOCKOUT_MS) refresh();
 }));
 
 (async function init() {
