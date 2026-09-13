@@ -15,6 +15,10 @@ const ESPN_TEAMS = {
 };
 const ESPN_POS = { 1: 'QB', 2: 'RB', 3: 'WR', 4: 'TE', 5: 'K', 16: 'DEF' };
 const ESPN_BENCH_SLOTS = new Set([20, 21]); // bench, IR
+// Lineup slot labels for the roster panel. ESPN numbers its slots; Sleeper names them (a few shortened).
+const ESPN_SLOTS = { 0: 'QB', 2: 'RB', 3: 'RB/WR', 4: 'WR', 5: 'WR/TE', 6: 'TE', 7: 'OP', 16: 'DEF', 17: 'K', 20: 'BN', 21: 'IR', 23: 'FLEX' };
+const SLEEPER_SLOTS = { SUPER_FLEX: 'SF', REC_FLEX: 'FLEX', WRRB_FLEX: 'FLEX', IDP_FLEX: 'IDP' };
+const SLOT_ORDER = ['QB', 'RB', 'RB/WR', 'WR', 'WR/TE', 'TE', 'FLEX', 'OP', 'SF', 'K', 'DEF', 'BN', 'IR', 'TAXI'];
 // ESPN scoring stat ids → Sleeper stat keys, so Sleeper's play-by-play can be scored with an ESPN
 // league's rules on the Live plays tab. Points/yards-allowed tiers aren't per play, so they're left out.
 const ESPN_STAT_KEYS = {
@@ -272,9 +276,9 @@ function espnLeagueData(d, cfg, week, period, dump, extraInfo) {
     const t = teams.find((x) => x.id === s.teamId) || {};
     const owner = ownerOf(t);
     const r = rec(t);
-    const starters = [], players_points = {}, projMap = {};
+    // Starters drive cheer/boo; the whole roster (bench and IR too) is kept for the roster panel.
+    const starters = [], players_points = {}, projMap = {}, roster = [];
     for (const e of s.rosterForCurrentScoringPeriod?.entries || []) {
-      if (ESPN_BENCH_SLOTS.has(e.lineupSlotId)) continue;
       const p = e.playerPoolEntry?.player;
       if (!p) continue;
       const pos = ESPN_POS[p.defaultPositionId] || '?';
@@ -282,13 +286,17 @@ function espnLeagueData(d, cfg, week, period, dump, extraInfo) {
       const pid = sleeperIdFor(p, dump) || `espn:${p.id}`;
       extraInfo[pid] ??= { name: shortName(p.firstName, p.lastName, pos, nfl, pid), pos, team: nfl, inj: null, num: null };
       const stat = (src) => (p.stats || []).find((x) => x.scoringPeriodId === Number(week) && x.statSourceId === src && x.statSplitTypeId === 1);
-      starters.push(pid);
+      const bench = ESPN_BENCH_SLOTS.has(e.lineupSlotId);
+      if (!bench) starters.push(pid);
+      roster.push({ pid, slot: ESPN_SLOTS[e.lineupSlotId] || (bench ? 'BN' : 'FLEX') });
       players_points[pid] = e.playerPoolEntry.appliedStatTotal ?? stat(0)?.appliedTotal ?? 0;
       projMap[pid] = stat(1)?.appliedTotal ?? 0;
     }
+    roster.sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot)); // ESPN lists slots in no set order
     return {
       m: { starters, players_points, points: s.totalPointsLive ?? s.totalPoints ?? 0 },
       projMap,
+      roster,
       key: t.id != null ? String(t.id) : null, // for team nicknames
       name: espnTeamName(t),
       user: owner?.displayName || '',
@@ -377,11 +385,27 @@ async function loadLeague(league, uid, week) {
     const A = stats(a), B = stats(b);
     return (B.w + B.t / 2) - (A.w + A.t / 2) || B.pf - A.pf;
   });
+  // Every player on a team with his lineup slot, for the roster panel: starters in the league's slot
+  // order (an empty slot stays as { pid: null }), then the bench, then IR / taxi.
+  const slotsOf = (m, roster) => {
+    const positions = league.roster_positions || [];
+    const out = (m.starters || []).map((pid, i) => {
+      const slot = positions[i] || 'FLEX';
+      return { pid: pid && pid !== '0' ? pid : null, slot: SLEEPER_SLOTS[slot] || slot };
+    });
+    const started = new Set(m.starters || []);
+    const reserve = new Set(roster?.reserve || []), taxi = new Set(roster?.taxi || []);
+    for (const pid of new Set([...(m.players || []), ...reserve, ...taxi])) {
+      if (!started.has(pid)) out.push({ pid, slot: reserve.has(pid) ? 'IR' : taxi.has(pid) ? 'TAXI' : 'BN' });
+    }
+    return out;
+  };
   const side = (m, roster, ownerId) => {
     const u = findUser(ownerId);
     const s = stats(roster);
     return {
       m,
+      roster: slotsOf(m, roster),
       key: roster ? String(roster.roster_id) : null, // for team nicknames
       name: teamName(u),
       user: u?.display_name || '',
@@ -558,6 +582,20 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
     pl.ptsShown = Math.max(...pl.legs.map((l) => l.pts));
   }
 
+  // Full rosters for the roster panel: who each player is, his game, and his points and projection
+  // under this league's scoring.
+  for (const ld of leagues) {
+    for (const s of [ld.me, ld.opp]) {
+      if (!s?.roster) continue;
+      s.roster = s.roster.map(({ pid, slot }) => {
+        if (!pid) return { pid, slot };
+        const info = playerInfo(pid, proj, dump, extraInfo);
+        const pj = s.projMap ? (s.projMap[pid] ?? 0) : leagueProj(proj[pid]?.stats, ld.league.scoring_settings);
+        return { pid, slot, info, rank: ranks?.map[pid] ?? null, game: games[info.team] || null, pts: s.m.players_points?.[pid] ?? 0, proj: pj };
+      });
+    }
+  }
+
   // Live projected total per side, built exactly like Sleeper's: each starter's in-game projection
   // (or his points so far when that comes out 0/NaN, e.g. a bye), then Sleeper's win formula.
   for (const ld of leagues) {
@@ -639,6 +677,12 @@ const gameWhen = (g) => {
   const t = g.state === 'pre' ? kickoff(g.date) : g.detail;
   return g.network && g.state !== 'post' ? `${t} · ${g.network}` : t;
 };
+// A player's game from his side: "@ PIT · Sun 1:00 PM · FOX", or "No game" on a bye.
+const gameLine = (g, team) => {
+  if (!g) return 'No game';
+  const home = g.home === team;
+  return `${home ? 'vs' : '@'} ${home ? g.away : g.home} · ${gameWhen(g)}`;
+};
 const leagueTag = (league) => nicknames[league.league_id] || initials(league.name);
 // Team nicknames from Settings, keyed per league so they stick to a team all season.
 const teamNickKey = (ld, key) => `${ld.league.league_id}:${key}`;
@@ -662,12 +706,18 @@ function leagueCard(ld) {
     ? (me.m.points > opp.m.points ? 'Won' : me.m.points < opp.m.points ? 'Lost' : 'Tied')
     : Math.round(p * 100) === 50 ? 'Toss-up' : p > 0.5 ? 'Projected win' : 'Projected loss';
   // A team nickname replaces the name (and username); hovering still shows the real one.
-  const who = (s) => {
+  // Clicking the name opens that team's roster instead of filtering to the league.
+  const who = (s, side) => {
     const label = teamLabel(ld, s);
     const nick = label !== s.name;
     const full = s.custom && s.user ? `${s.name} (${s.user})` : s.name;
-    return h('div', { class: 'tn', title: nick ? `${label} · ${full}` : full },
-      label, !nick && s.custom && s.user ? h('span', { class: 'un' }, ` (${s.user})`) : null);
+    const open = (e) => { e.preventDefault(); e.stopPropagation(); openRoster(ld.league.league_id, side); };
+    return h('div', {
+      class: 'tn ro-open', role: 'button', tabindex: '0',
+      title: `${nick ? `${label} · ${full}` : full} — click for the roster`,
+      onclick: open,
+      onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') open(e); },
+    }, label, !nick && s.custom && s.user ? h('span', { class: 'un' }, ` (${s.user})`) : null);
   };
   const standing = (s) => h('div', { class: 'rec' }, s.record, s.place ? ` · ${ordinal(s.place)} of ${s.of}` : '');
   const id = ld.league.league_id;
@@ -701,14 +751,14 @@ function leagueCard(ld) {
       h('span', { class: 'wl', style: `color:${color}` }, verdict)),
     h('div', { class: 'lg-score' },
       h('div', { class: 'side' },
-        who(me), standing(me),
+        who(me, 'me'), standing(me),
         h('span', { class: 'pts', style: `color:${color}` }, fmtPts(me.m.points)), ' ',
         h('span', { class: 'pj' }, `proj ${fmt2(me.proj)}`)),
       h('div', { class: 'mid' },
         h('span', { class: 'vs' }, 'vs'),
         h('span', { class: 'pct', style: `color:${color}`, title: 'Your estimated chance to win' }, `${Math.round(p * 100)}%`)),
       h('div', { class: 'side r' },
-        who(opp), standing(opp),
+        who(opp, 'opp'), standing(opp),
         h('span', { class: 'pj' }, `proj ${fmt2(opp.proj)}`), ' ',
         h('span', { class: 'pts', style: `color:${winColor(1 - p)}` }, fmtPts(opp.m.points)))), // their side of the odds
     h('div', { class: 'bar', title: `Win chance ${Math.round(p * 100)}%` }, h('i', { style: `width:${(p * 100).toFixed(1)}%` })));
@@ -731,15 +781,7 @@ function playerRow(pl, { showGame = false } = {}) {
   const g = pl.game;
   const started = g && g.state !== 'pre';
   const chips = pl.legs.map((l) => legChip(l));
-  let gameText = null;
-  if (showGame) {
-    if (!g) gameText = 'No game';
-    else {
-      const oppTeam = g.home === pl.info.team ? g.away : g.home;
-      const at = g.home === pl.info.team ? 'vs' : '@';
-      gameText = `${at} ${oppTeam} · ${gameWhen(g)}`;
-    }
-  }
+  const gameText = showGame ? gameLine(g, pl.info.team) : null;
   return h('div', { class: 'pl' },
     h('div', { class: 'pl-main' },
       h('div', { class: 'pl-name' },
@@ -908,6 +950,70 @@ function renderMustWatch(model) {
     h('b', null, top.state === 'in' ? '🔴 Watch now: ' : '🔥 Must-watch: '),
     `${top.away} @ ${top.home}`,
     h('span', { class: 'pj' }, ` — ${fmt1(top.projStake)} proj pts in play · ${c} to cheer, ${b} to boo · ${gameWhen(top)}`));
+  el.hidden = false;
+}
+
+// ---------- roster panel ----------
+let rosterOpen = null; // { leagueId, side: 'me' | 'opp' } while a team's roster is showing
+
+function openRoster(leagueId, side) {
+  rosterOpen = { leagueId, side };
+  renderRoster();
+}
+
+function closeRoster() {
+  rosterOpen = null;
+  $('#roster').hidden = true;
+}
+
+// One roster spot: lineup slot, player, his game, points and projection in that league.
+function rosterRow(r) {
+  if (!r.pid) {
+    return h('div', { class: 'pl ro-row' }, h('span', { class: 'ro-slot' }, r.slot), h('div', { class: 'pl-main empty' }, 'Empty'));
+  }
+  const g = r.game;
+  const started = g && g.state !== 'pre';
+  return h('div', { class: 'pl ro-row' },
+    h('span', { class: 'ro-slot' }, r.slot),
+    h('div', { class: 'pl-main' },
+      h('div', { class: 'pl-name' },
+        r.info.name,
+        r.info.num != null && r.info.num !== '' ? h('span', { class: 'num' }, ` #${r.info.num}`) : null),
+      h('div', { class: 'pl-meta' },
+        h('span', null, `${r.info.pos}${r.rank || ''}${r.info.team ? ' · ' + r.info.team : ''}`),
+        injBadge(r.info.inj),
+        h('span', null, gameLine(g, r.info.team)))),
+    h('div', { class: `pl-pts ${g?.state === 'in' ? 'live' : ''} ${started ? '' : 'pre'}` },
+      h('span', { class: 'v', title: 'Fantasy points' }, fmt2(r.pts)),
+      h('span', { class: 'p' }, `proj ${fmt2(r.proj)}`)));
+}
+
+// The roster of the team clicked on a league card. Redrawn on every refresh while it's open.
+function renderRoster() {
+  const el = $('#roster');
+  const ld = rosterOpen && current?.model.leagues.find((x) => x.league.league_id === rosterOpen.leagueId);
+  const s = ld?.[rosterOpen.side];
+  if (!s?.roster) return closeRoster();
+  const label = teamLabel(ld, s);
+  const starters = s.roster.filter((r) => !['BN', 'IR', 'TAXI'].includes(r.slot));
+  const bench = s.roster.filter((r) => r.slot === 'BN');
+  const reserve = s.roster.filter((r) => r.slot === 'IR' || r.slot === 'TAXI');
+  const total = (list, key) => list.reduce((t, r) => t + (r[key] || 0), 0);
+  const section = (title, list, note) => list.length
+    ? h('div', { class: 'ro-sec' }, h('h4', null, title, note ? h('span', { class: 'ro-note' }, note) : null), list.map(rosterRow))
+    : null;
+  el.replaceChildren(
+    h('div', { class: 'ro-backdrop', onclick: closeRoster }),
+    h('div', { class: 'ro-panel', role: 'dialog', 'aria-label': `${label} roster`, style: `--lc:${ld.color}` },
+      h('div', { class: 'ro-head' },
+        h('div', { class: 'ro-title' },
+          h('div', { class: 'ro-team' }, label, s.user && s.user !== label ? h('span', { class: 'un' }, ` (${s.user})`) : null),
+          h('div', { class: 'ro-sub' }, [ld.league.name, s.record, s.place ? `${ordinal(s.place)} of ${s.of}` : null].filter(Boolean).join(' · '))),
+        h('button', { type: 'button', class: 'ghost x', title: 'Close (Esc)', onclick: closeRoster }, '✕')),
+      h('div', { class: 'ro-sum' }, `${fmtPts(s.m.points)} pts · proj ${fmt2(s.proj)}`),
+      section('Starters', starters),
+      section('Bench', bench, `${fmt2(total(bench, 'pts'))} pts`),
+      section('IR / Taxi', reserve)));
   el.hidden = false;
 }
 
@@ -1264,6 +1370,7 @@ function render() {
   if (!model.games.some((g) => !g.none)) {
     setStatus('Couldn’t load the NFL schedule from ESPN — game times and live scores are missing for now.');
   }
+  if (rosterOpen) renderRoster(); // keep an open roster's points live
 }
 
 // Sleeper usernames are letters, numbers and underscores — strips "@", spaces, etc.
@@ -1492,6 +1599,7 @@ $('#username').addEventListener('input', (e) => {
   }
 });
 $('#settings').addEventListener('click', () => ($('#setup').hidden ? showSetup() : hideSetup()));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && rosterOpen) closeRoster(); });
 $('#refresh').addEventListener('click', refresh);
 $('#week').addEventListener('change', (e) => {
   // Picking the current week means "follow along", so a popout left open moves on to next week by itself.

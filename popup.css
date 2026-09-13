@@ -154,6 +154,30 @@ body.full .leagues { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)
 .lg.dim { opacity: .45; }
 .lg.dim:hover { opacity: .8; }
 
+/* Roster panel: click a team name on a league card */
+.lg .tn.ro-open { cursor: pointer; }
+.lg .tn.ro-open:hover, .lg .tn.ro-open:focus-visible { text-decoration: underline; outline: none; }
+.roster { position: fixed; inset: 0; z-index: 20; display: flex; justify-content: center; align-items: flex-start; padding: 12px; }
+.roster[hidden] { display: none; }
+.ro-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, .5); }
+.ro-panel {
+  position: relative; width: 100%; max-width: 520px; max-height: calc(100vh - 24px); overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--lc);
+  border-radius: 10px; padding: 8px 10px 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+}
+.ro-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.ro-title { min-width: 0; }
+.ro-team { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ro-team .un { color: var(--muted); font-weight: 400; font-size: 12px; }
+.ro-sub { font-size: 11.5px; color: var(--muted); }
+.ro-sum { margin: 6px 0 0; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ro-sec h4 { margin: 10px 0 2px; font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
+.ro-note { margin-left: 6px; font-weight: 600; letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
+.ro-slot {
+  flex: none; width: 40px; padding: 1px 0; border-radius: 4px; text-align: center;
+  font-size: 10px; font-weight: 800; color: var(--muted); background: var(--panel2);
+}
+
 /* "Only <league> ✕" chip next to the time filter */
 .lchip {
   flex: none; max-width: 45%; height: 28px; padding: 0 9px; border-radius: 7px; cursor: pointer;
