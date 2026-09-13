@@ -114,6 +114,9 @@ button, select, input { font: inherit; color: inherit; }
 }
 .team-row input { padding: 4px 8px; min-width: 0; }
 .setup .actions { justify-content: flex-end; margin-top: 12px; }
+.app-version { margin-top: 14px; text-align: center; font-size: 11px; color: var(--muted); }
+.app-version a { color: var(--accent); text-decoration: none; }
+.app-version a:hover { text-decoration: underline; }
 .ghost { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: none; cursor: pointer; }
 .primary { padding: 8px 14px; border-radius: 8px; border: 0; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
 
