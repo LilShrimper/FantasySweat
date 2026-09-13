@@ -43,6 +43,10 @@ The Sleeper Game Center feed and ESPN's APIs are unofficial and can change witho
 
 Your settings stay in your browser, and the extension only talks to Sleeper and ESPN. No accounts, tracking or ads. Full details: [privacy policy](PRIVACY.md).
 
+## Changelog
+
+What's new in each version: [CHANGELOG.md](CHANGELOG.md), with the full list of changes per version on the [Releases](https://github.com/LilShrimper/FantasySweat/releases) page.
+
 ## Support
 
 Found a bug or have an idea? [Open an issue](https://github.com/LilShrimper/FantasySweat/issues).

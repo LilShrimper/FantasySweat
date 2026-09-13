@@ -3,6 +3,8 @@ name: Publish to Chrome Web Store
 # Runs when manifest.json changes on main, and only uploads if its "version" actually went up —
 # ordinary commits (README edits, etc.) never send anything to the store. The store keys live in
 # this repo's Actions secrets: EXTENSION_ID, PUBLISHER_ID, CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN.
+# After a successful upload it tags the version (v1.2.3) and creates its GitHub Release: that
+# version's section of CHANGELOG.md, followed by the pull requests merged since the last release.
 on:
   push:
     branches: [main]
@@ -10,7 +12,7 @@ on:
   workflow_dispatch: # "Run workflow" button — publishes the current version without the version check
 
 permissions:
-  contents: read
+  contents: write # to tag the version and create its GitHub Release
 
 concurrency:
   group: chrome-web-store
@@ -31,6 +33,7 @@ jobs:
           EVENT: ${{ github.event_name }}
         run: |
           now=$(jq -r .version manifest.json)
+          echo "version=$now" >> "$GITHUB_OUTPUT"
           before=$(git show "$BEFORE_SHA:manifest.json" 2>/dev/null | jq -r .version 2>/dev/null || true)
           if [ "$EVENT" = "workflow_dispatch" ] || [ "$now" != "$before" ]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
@@ -58,3 +61,20 @@ jobs:
           CLIENT_ID: ${{ secrets.CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
           REFRESH_TOKEN: ${{ secrets.REFRESH_TOKEN }}
+
+      - name: Create the GitHub Release
+        if: steps.version.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          tag="v$VERSION"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "$tag already has a release (a re-run) — leaving it as is"
+            exit 0
+          fi
+          # This version's section of CHANGELOG.md ("## 1.2.3 — date" up to the next "## "), if there is one;
+          # gh adds the list of pull requests merged since the previous release after it.
+          awk -v heading="## $VERSION" 'index($0, heading) == 1 && (length($0) == length(heading) || substr($0, length(heading) + 1, 1) == " ") { on = 1; next } /^## / { on = 0 } on' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "No CHANGELOG.md section for $VERSION — the release lists merged pull requests only"
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$tag" --notes-file notes.md --generate-notes
