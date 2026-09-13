@@ -1595,6 +1595,13 @@ async function showSetup() {
   $('#espnHint').hidden = true;
   renderEspnRows();
   $('#username').focus();
+  // Remember how Settings looked on opening, so leaving by the logo (or ⚙) can tell if anything changed.
+  setupSnapshot = settingsSnapshot();
+  $('#discardPrompt').hidden = true;
+  if (current) {
+    $('#brand').classList.add('back');
+    $('#brand').title = 'Back to the main view';
+  }
 }
 
 function renderEspnRows() {
@@ -1639,7 +1646,26 @@ async function addEspnLeague() {
 
 function hideSetup() {
   $('#setup').hidden = true;
+  $('#discardPrompt').hidden = true;
+  $('#brand').classList.remove('back');
+  $('#brand').removeAttribute('title');
   if (current) $('#app').hidden = false;
+}
+
+// Settings as it stood when it opened: the ESPN list plus every box and checkbox in the form.
+let setupSnapshot = '';
+const settingsSnapshot = () => JSON.stringify([
+  espnDraft,
+  [...$('#setup').querySelectorAll('input')].map((i) => (i.type === 'checkbox' ? i.checked : i.value)),
+]);
+
+// Back to the main view without saving — the logo, or ⚙ again. If anything was changed, ask first.
+function leaveSetup() {
+  if ($('#setup').hidden || !current) return; // first run: there's no main view to go back to yet
+  if (settingsSnapshot() === setupSnapshot) return hideSetup();
+  $('#discardPrompt').hidden = false;
+  $('#discardPrompt').scrollIntoView({ block: 'nearest' });
+  $('#discardKeep').focus();
 }
 
 // Nickname boxes → { key: nickname }; a box left blank removes that nickname.
@@ -1707,7 +1733,11 @@ $('#username').addEventListener('input', (e) => {
     $('#userHint').hidden = false;
   }
 });
-$('#settings').addEventListener('click', () => ($('#setup').hidden ? showSetup() : hideSetup()));
+$('#settings').addEventListener('click', () => ($('#setup').hidden ? showSetup() : leaveSetup()));
+$('#brand').addEventListener('click', leaveSetup);
+$('#brand').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); leaveSetup(); } });
+$('#discardKeep').addEventListener('click', () => { $('#discardPrompt').hidden = true; });
+$('#discardLeave').addEventListener('click', hideSetup);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && rosterOpen) closeRoster(); });
 $('#refresh').addEventListener('click', refresh);
 $('#week').addEventListener('change', (e) => {
