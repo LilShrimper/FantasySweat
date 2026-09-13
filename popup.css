@@ -57,6 +57,11 @@ button, select, input { font: inherit; color: inherit; }
   font-weight: 800; font-size: 12px; letter-spacing: .5px; flex: none;
 }
 .title { font-weight: 700; font-size: 14px; }
+/* "DEV" beside the title in an unpacked (local folder) copy */
+.dev-tag {
+  margin-left: 4px; padding: 0 5px; border-radius: 4px; vertical-align: 2px;
+  font-size: 9.5px; font-weight: 800; letter-spacing: .5px; color: #0f1420; background: var(--hedge);
+}
 .sub { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .controls { display: flex; gap: 4px; flex: none; }
 .controls button, .controls select {
