@@ -20,7 +20,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # need the previous commit to compare versions
 
@@ -44,7 +44,7 @@ jobs:
         if: steps.version.outputs.publish == 'true'
         run: zip -r extension.zip manifest.json fantasy-sweat.html popup.css popup.js icons
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         if: steps.version.outputs.publish == 'true'
         with:
           node-version: 22
