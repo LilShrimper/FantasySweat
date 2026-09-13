@@ -1334,6 +1334,7 @@ let espnDraft = [];        // the same list while Settings is open (saved on Sav
 let refreshTimer = null;
 let pickedWeek = null;     // week chosen in the dropdown; null = follow the NFL's current week
 let playerSort = 'points'; // By player order: 'points' or 'position' (remembered)
+let sortClose = false;     // Settings: league cards ordered by closest matchup (win chance nearest 50%)
 
 // Re-run the cheer/boo math using only the picked leagues' matchups; drops games with nothing at stake there.
 // keepAll (for leagues hidden in Settings): keep every game, so the rest looks just like "all leagues".
@@ -1435,6 +1436,14 @@ function setStatus(msg, isError = false) {
   el.hidden = !msg;
 }
 
+// League cards in their usual order, or — with the Settings option — closest matchups first: win chance
+// nearest 50% (as shown, to the whole percent), ties in the usual order, leagues without a matchup last.
+function cardOrder(leagues) {
+  if (!sortClose) return leagues;
+  const gap = (ld) => (ld.opp ? Math.abs(Math.round((ld.winPct ?? 0.5) * 100) - 50) : Infinity);
+  return leagues.map((ld, i) => ({ ld, i, gap: gap(ld) })).sort((a, b) => a.gap - b.gap || a.i - b.i).map((x) => x.ld);
+}
+
 function render() {
   if (!current) return;
   const { week, user } = current;
@@ -1453,7 +1462,7 @@ function render() {
   const scoped = scopeToLeague(model, selectedLeagues);
   lastPlays = latestPlays(scoped); // each player's latest scoring play, for the rows drawn below
 
-  $('#leagues').replaceChildren(...model.leagues.map(leagueCard));
+  $('#leagues').replaceChildren(...cardOrder(model.leagues).map(leagueCard));
   if (!model.leagues.length) {
     $('#leagues').replaceChildren(h('div', { class: 'status' }, full.leagues.length
       ? 'All your leagues are hidden. Turn one back on in Settings ⚙.'
@@ -1539,6 +1548,7 @@ async function showSetup() {
   $('#username').value = saved;
   $('#userHint').hidden = true;
   $('#cancelSetup').hidden = !current; // nothing to go back to on first run (ESPN-only users included)
+  $('#sortClose').checked = sortClose;
 
   // One row per league (once leagues have loaded): show/hide, its tag, and — folded away —
   // a nickname box for every team in it.
@@ -1707,6 +1717,8 @@ $('#setup').addEventListener('submit', async (e) => {
   });
   await store.set('leagueColors', leagueColors);
   for (const ld of current?.model.leagues || []) ld.color = leagueColors[ld.league.league_id] || ld.defaultColor;
+  sortClose = $('#sortClose').checked;
+  await store.set('sortClose', sortClose);
   const userChanged = name !== cleanUsername(await store.get('username')); // none saved reads as ''
   await store.set('username', name);
   hideSetup();
@@ -1714,7 +1726,7 @@ $('#setup').addEventListener('submit', async (e) => {
     current = null;
     refresh();
   } else {
-    render(); // nicknames / colors / shown leagues only — no need to refetch
+    render(); // nicknames / colors / shown leagues / card order only — no need to refetch
   }
 });
 $('#cancelSetup').addEventListener('click', hideSetup);
@@ -1843,6 +1855,7 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   view = (await store.get('view')) || 'games';
   filter = (await store.get('filter')) || 'all';
   playerSort = (await store.get('playerSort')) === 'position' ? 'position' : 'points';
+  sortClose = (await store.get('sortClose')) === true;
   const savedLeagues = await store.get('leagues');
   selectedLeagues = Array.isArray(savedLeagues) ? savedLeagues : [];
   nicknames = (await store.get('nicknames')) || {};

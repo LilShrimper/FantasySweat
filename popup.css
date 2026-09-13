@@ -95,6 +95,8 @@ button, select, input { font: inherit; color: inherit; }
 .trec { color: var(--muted); font-weight: 500; font-size: 11px; }
 .setup-h { margin: 14px 0 6px; font-weight: 700; font-size: 12px; }
 .setup-h span { font-weight: 400; color: var(--muted); }
+/* A plain on/off option in Settings (Display) */
+.setup label.check-row { display: flex; align-items: center; gap: 8px; margin: 0; padding: 4px 0; color: var(--text); cursor: pointer; }
 .nick-row {
   display: grid; grid-template-columns: 1fr 110px 100px auto; align-items: center; gap: 8px;
   padding: 4px 0 4px 8px; margin-bottom: 4px; border-left: 3px solid var(--lc);
