@@ -841,6 +841,10 @@ const rankTitle = (pl) => {
 // Points so far once a player's game has kicked off, his projection before then; highest first.
 const sortPts = (p) => (p.game && p.game.state !== 'pre' ? p.ptsShown : p.projShown);
 const byPointsDesc = (a, b) => sortPts(b) - sortPts(a) || b.projShown - a.projShown || Math.abs(b.impact) - Math.abs(a.impact);
+// By player's other order: QB, RB, WR, TE, K, D/ST (anything else after), highest points first within each.
+const POS_ORDER = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF'];
+const posRank = (p) => (POS_ORDER.includes(p.info.pos) ? POS_ORDER.indexOf(p.info.pos) : POS_ORDER.length);
+const byPositionThenPoints = (a, b) => posRank(a) - posRank(b) || byPointsDesc(a, b);
 
 const splitSides = (players) => ({
   cheer: players.filter((p) => p.verdict === 'cheer').sort(byPointsDesc),
@@ -966,10 +970,17 @@ function renderPlayers(model) {
   const P = model.players.filter((p) => matchesFilter(p.game));
   if (!P.length) return emptyFiltered('None of your players play in this time window.');
   const { cheer, boo, hedge } = splitSides(P);
-  return h('div', { class: 'pcols' },
-    list('cheer', '▲ Cheer for', cheer, `(${cheer.length})`),
-    list('boo', '▼ Root against', boo, `(${boo.length})`),
-    hedge.length ? list('hedge', '↔ Coin flip', hedge, '(on your team in one league, opponent’s in another)') : null);
+  if (playerSort === 'position') [cheer, boo, hedge].forEach((players) => players.sort(byPositionThenPoints));
+  const sortButton = (key, label) => h('button', {
+    type: 'button', class: playerSort === key ? 'on' : '', 'aria-pressed': String(playerSort === key),
+    onclick: () => { playerSort = key; store.set('playerSort', key); render(); },
+  }, label);
+  return h('div', null,
+    h('div', { class: 'psort' }, h('span', null, 'Sort'), sortButton('points', 'Points'), sortButton('position', 'Position')),
+    h('div', { class: 'pcols' },
+      list('cheer', '▲ Cheer for', cheer, `(${cheer.length})`),
+      list('boo', '▼ Root against', boo, `(${boo.length})`),
+      hedge.length ? list('hedge', '↔ Coin flip', hedge, '(on your team in one league, opponent’s in another)') : null));
 }
 
 function renderMustWatch(model) {
@@ -1321,6 +1332,7 @@ let espnLeagues = [];      // [{ id, teamId }] — ESPN leagues from Settings
 let espnDraft = [];        // the same list while Settings is open (saved on Save)
 let refreshTimer = null;
 let pickedWeek = null;     // week chosen in the dropdown; null = follow the NFL's current week
+let playerSort = 'points'; // By player order: 'points' or 'position' (remembered)
 
 // Re-run the cheer/boo math using only the picked leagues' matchups; drops games with nothing at stake there.
 // keepAll (for leagues hidden in Settings): keep every game, so the rest looks just like "all leagues".
@@ -1778,6 +1790,7 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   }
   view = (await store.get('view')) || 'games';
   filter = (await store.get('filter')) || 'all';
+  playerSort = (await store.get('playerSort')) === 'position' ? 'position' : 'points';
   const savedLeagues = await store.get('leagues');
   selectedLeagues = Array.isArray(savedLeagues) ? savedLeagues : [];
   nicknames = (await store.get('nicknames')) || {};

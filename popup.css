@@ -255,6 +255,14 @@ body.full .games { grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
 .chip.against::before { content: "\2212"; color: var(--boo); }
 
 /* By-player view */
+.psort { display: flex; align-items: center; gap: 4px; margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+.psort span { margin-right: 4px; }
+.psort button {
+  height: 26px; padding: 0 10px; border-radius: 7px; cursor: pointer; font-weight: 600;
+  color: var(--muted); background: var(--panel); border: 1px solid var(--line);
+}
+.psort button:hover { border-color: var(--accent); }
+.psort button.on { color: var(--text); background: var(--panel2); border-color: var(--accent); }
 .plist { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px 8px; margin-bottom: 8px; }
 .plist h3 { margin: 2px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
 .plist.cheer h3 { color: var(--cheer); }
