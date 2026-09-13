@@ -793,7 +793,19 @@ function playerRow(pl, { showGame = false } = {}) {
         gameText && h('span', null, gameText))),
     h('div', { class: `pl-pts ${g?.state === 'in' ? 'live' : ''} ${started ? '' : 'pre'}` },
       h('span', { class: 'v', title: 'Live fantasy points' }, fmt2(pl.ptsShown)),
+      lastPlays.has(pl.pid) ? gainTag(pl, lastPlays.get(pl.pid)) : null,
       h('span', { class: 'p' }, `proj ${fmt2(pl.projShown)}`)));
+}
+
+// His latest scoring play beside his points ("+6.5"): green when it helped you, red when it hurt,
+// plain for coin-flip players. Hover for what happened.
+function gainTag(pl, { pts, play }) {
+  const helped = pl.verdict === 'cheer' ? pts > 0 : pl.verdict === 'boo' ? pts < 0 : null;
+  const when = playWhen(play);
+  return h('span', {
+    class: `gain ${helped == null ? '' : helped ? 'good' : 'bad'}`,
+    title: `Latest scoring play${when ? ` (${when})` : ''}: ${play.desc}`,
+  }, signed(pts));
 }
 
 const rankTitle = (pl) => {
@@ -1022,6 +1034,7 @@ function renderRoster() {
 // saved (~1 MB a week), since Live plays only shows games in progress; older weeks are dropped.
 let playsCache = null;
 let playGameIds = null; // ESPN game id → Sleeper game id for the games we pull plays from
+let lastPlays = new Map(); // pid → his latest scoring play, worked out on each render
 const PLAY_KEEP = 300;  // plays kept per game
 const PLAYS_SHOWN = 15; // Live plays is a snapshot: latest plays per column, not the full history
 
@@ -1105,14 +1118,72 @@ async function updatePlays(cur) {
   if (pulled) await store.set('plays', playsCache);
 }
 
-// Plays are only pulled while the Live plays tab is open: on every refresh, and right away when it opens.
+// Plays are pulled on every refresh, whatever tab is open: Live plays lists them, and every player row
+// shows his latest scoring play.
 function loadPlays() {
   const cur = current;
-  if (!cur || view !== 'plays') return;
-  updatePlays(cur).then(() => { if (cur === current && view === 'plays') render(); }).catch(() => {});
+  if (!cur) return;
+  updatePlays(cur).then(() => { if (cur === current) render(); }).catch(() => {});
 }
 
 const signed = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + fmtPts(Math.abs(n));
+const playWhen = (play) => {
+  const quarter = /^\d$/.test(play.q) ? `Q${play.q}` : play.q;
+  return quarter ? `${quarter} ${play.clock}`.trim() : '';
+};
+
+// One play's fantasy points for the players in it, split into your starters and your opponents'
+// ({ for, against }). Each league scores it its own way; the biggest swing across leagues is kept.
+function scorePlay(play, byPid, defs) {
+  const items = { for: [], against: [] };
+  const add = (pl, stats) => {
+    for (const leg of pl.legs) {
+      const pts = leagueProj(stats, leg.ld.league.scoring_settings);
+      if (Math.abs(pts) < 0.005) continue;
+      const bucket = items[leg.side > 0 ? 'for' : 'against'];
+      let it = bucket.find((x) => x.pl === pl);
+      if (!it) bucket.push((it = { pl, pts, legs: [] }));
+      if (Math.abs(pts) > Math.abs(it.pts)) it.pts = pts; // biggest swing across leagues
+      it.legs.push({ leg, pts });
+    }
+  };
+  for (const s of play.stats) {
+    const pl = byPid.get(s.pid);
+    if (pl) add(pl, s.stats);
+  }
+  // Team defenses: add up the defenders' stats on this play (idp_sack → sack, idp_int → int, ...).
+  for (const d of defs) {
+    const agg = {};
+    for (const s of play.stats) {
+      if (s.team !== d.info.team) continue;
+      for (const [k, v] of Object.entries(s.stats)) {
+        if (k.startsWith('idp_') && typeof v === 'number') agg[k.slice(4)] = (agg[k.slice(4)] || 0) + v;
+      }
+    }
+    if (Object.keys(agg).length) add(d, agg);
+  }
+  return items;
+}
+
+// Each player's latest fantasy-scoring play (pid → { pts, play }), for the "+0.3" beside his points.
+// It stays until his next one, so it's still there after his game ends.
+function latestPlays(model) {
+  const out = new Map();
+  if (!playGameIds || !playsCache) return out;
+  const byPid = new Map(model.players.map((p) => [p.pid, p]));
+  const defs = model.players.filter((p) => p.info.pos === 'DEF');
+  for (const g of model.games) {
+    const plays = playsCache.games[playGameIds[g.id]]?.plays;
+    if (!plays) continue;
+    for (const play of Object.values(plays).sort((a, b) => b.t - a.t || b.seq - a.seq)) {
+      const { for: mine, against: theirs } = scorePlay(play, byPid, defs);
+      for (const it of [...mine, ...theirs]) {
+        if (!out.has(it.pl.pid)) out.set(it.pl.pid, { pts: it.pts, play });
+      }
+    }
+  }
+  return out;
+}
 
 // Two columns — plays by your starters, plays by your opponents' starters — newest first.
 function renderPlays(model) {
@@ -1125,33 +1196,7 @@ function renderPlays(model) {
     const plays = playsCache?.games[playGameIds[g.id]]?.plays;
     if (!plays) continue;
     for (const play of Object.values(plays)) {
-      const items = { for: [], against: [] };
-      const add = (pl, stats) => {
-        for (const leg of pl.legs) {
-          const pts = leagueProj(stats, leg.ld.league.scoring_settings);
-          if (Math.abs(pts) < 0.005) continue;
-          const bucket = items[leg.side > 0 ? 'for' : 'against'];
-          let it = bucket.find((x) => x.pl === pl);
-          if (!it) bucket.push((it = { pl, pts, legs: [] }));
-          if (Math.abs(pts) > Math.abs(it.pts)) it.pts = pts; // biggest swing across leagues
-          it.legs.push({ leg, pts });
-        }
-      };
-      for (const s of play.stats) {
-        const pl = byPid.get(s.pid);
-        if (pl) add(pl, s.stats);
-      }
-      // Team defenses: add up the defenders' stats on this play (idp_sack → sack, idp_int → int, ...).
-      for (const d of defs) {
-        const agg = {};
-        for (const s of play.stats) {
-          if (s.team !== d.info.team) continue;
-          for (const [k, v] of Object.entries(s.stats)) {
-            if (k.startsWith('idp_') && typeof v === 'number') agg[k.slice(4)] = (agg[k.slice(4)] || 0) + v;
-          }
-        }
-        if (Object.keys(agg).length) add(d, agg);
-      }
+      const items = scorePlay(play, byPid, defs);
       for (const side of ['for', 'against']) {
         if (items[side].length) cols[side].push({ play, game: g, players: items[side] });
       }
@@ -1185,9 +1230,8 @@ function renderPlays(model) {
 
 function playItem(it, side) {
   const { play, game } = it;
-  const quarter = /^\d$/.test(play.q) ? `Q${play.q}` : play.q;
   const when = [
-    quarter && `${quarter} ${play.clock}`.trim(),
+    playWhen(play),
     `${game.away} @ ${game.home}`,
     play.t ? new Date(play.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : null,
   ].filter(Boolean).join(' · ');
@@ -1345,6 +1389,7 @@ function render() {
   const picked = selectable.filter((ld) => selectedLeagues.includes(ld.league.league_id));
   selectedLeagues = picked.length && picked.length < selectable.length ? picked.map((ld) => ld.league.league_id) : [];
   const scoped = scopeToLeague(model, selectedLeagues);
+  lastPlays = latestPlays(scoped); // each player's latest scoring play, for the rows drawn below
 
   $('#leagues').replaceChildren(...model.leagues.map(leagueCard));
   if (!model.leagues.length) {
@@ -1663,8 +1708,7 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   view = b.dataset.view;
   document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x === b));
   store.set('view', view);
-  render();
-  loadPlays();
+  render(); // plays are already pulled on every refresh
 }));
 
 (async function init() {
