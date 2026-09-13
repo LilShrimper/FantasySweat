@@ -127,6 +127,15 @@ button, select, input { font: inherit; color: inherit; }
 .app-version { margin-top: 14px; text-align: center; font-size: 11px; color: var(--muted); }
 .app-version a { color: var(--accent); text-decoration: none; }
 .app-version a:hover { text-decoration: underline; }
+/* A newer version in the Chrome Web Store: bar above the league cards, and beside the version in Settings */
+.update-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; padding: 7px 10px;
+  border-radius: 9px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--panel)); font-size: 12.5px;
+}
+.update-bar[hidden] { display: none; }
+.update-now { flex: none; padding: 5px 11px; border-radius: 7px; border: 0; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+.app-version .update-note { color: var(--text); font-weight: 600; }
+.app-version .update-now { padding: 2px 8px; font-size: 11px; }
 .ghost { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: none; cursor: pointer; }
 .primary { padding: 8px 14px; border-radius: 8px; border: 0; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
 

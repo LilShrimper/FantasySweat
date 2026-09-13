@@ -1612,6 +1612,7 @@ async function showSetup() {
     $('#brand').classList.add('back');
     $('#brand').title = 'Back to the main view';
   }
+  checkForUpdate({ force: true }); // opening Settings always asks the store (Chrome may still throttle it)
 }
 
 function renderEspnRows() {
@@ -1766,20 +1767,93 @@ const pageURL = (query = '') => {
 };
 
 // Bottom of Settings: the version actually running (the store copy, or an unpacked folder's manifest),
-// with a link to what changed in each version.
+// "Update now" when the store has a newer one, and a link to what changed in each version.
+let appVersion = null;
 async function showVersion() {
-  let version = null;
-  try {
-    version = isExtension && chrome.runtime.getManifest
-      ? chrome.runtime.getManifest().version
-      : (await (await fetch('manifest.json', { cache: 'no-store' })).json()).version;
-  } catch { /* leave the line hidden */ }
-  if (!version) return;
+  if (!appVersion) {
+    try {
+      appVersion = isExtension && chrome.runtime.getManifest
+        ? chrome.runtime.getManifest().version
+        : (await (await fetch('manifest.json', { cache: 'no-store' })).json()).version;
+    } catch { /* leave the line hidden */ }
+  }
+  if (!appVersion) return;
   $('#appVersion').replaceChildren(
-    `Fantasy Sweat v${version} · `,
+    `Fantasy Sweat v${appVersion} · `,
+    ...(updateVersion ? [h('b', { class: 'update-note' }, `v${updateVersion} available`), ' ', updateButton(), ' · '] : []),
     h('a', { href: 'https://github.com/LilShrimper/FantasySweat/releases', target: '_blank', rel: 'noopener' }, 'What’s new'));
   $('#appVersion').hidden = false;
 }
+
+// ---------- store updates ----------
+// Chrome updates store installs by itself every few hours. This asks the Web Store now — when Fantasy
+// Sweat opens (at most every 3 hours) and whenever Settings opens — and offers to restart onto a newer
+// version. Only store installs can be updated: Chrome adds update_url to their manifest, not unpacked ones.
+// A version still in Google's review isn't offered yet; the store keeps serving the last approved one.
+const UPDATE_CHECK_MS = 3 * 3600_000;
+const storeRuntime = () => (typeof chrome !== 'undefined' && chrome.runtime?.requestUpdateCheck
+  && chrome.runtime.getManifest?.()?.update_url ? chrome.runtime : null);
+const isNewer = (a, b) => {
+  const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  }
+  return false;
+};
+let updateVersion = null; // a newer version waiting in the store, if one was found
+
+async function checkForUpdate({ force = false } = {}) {
+  const rt = storeRuntime();
+  if (!rt) return;
+  const running = rt.getManifest().version;
+  const saved = (await store.get('storeUpdate')) || {}; // { checkedAt, version } from the last check
+  updateVersion = saved.version && isNewer(saved.version, running) ? saved.version : null;
+  showUpdate();
+  if (!force && Date.now() - (saved.checkedAt || 0) < UPDATE_CHECK_MS) return;
+  try {
+    const res = await rt.requestUpdateCheck(); // { status: 'update_available' | 'no_update' | 'throttled', version }
+    if (res?.status === 'throttled') return;   // Chrome was asked too recently — keep what we knew
+    updateVersion = res?.status === 'update_available' && res.version && isNewer(res.version, running) ? res.version : null;
+    await store.set('storeUpdate', { checkedAt: Date.now(), version: updateVersion });
+    showUpdate();
+  } catch { /* offline, or Chrome wouldn't check — try again next time */ }
+}
+
+// A newer store version: a bar above the league cards, and "Update now" beside the version in Settings.
+async function showUpdate() {
+  const bar = $('#updateBar');
+  if (!updateVersion) {
+    bar.hidden = true;
+    return showVersion();
+  }
+  // Pressed Update now but still on the old version: Chrome finishes once every Fantasy Sweat window is closed.
+  const tried = await store.get('updateTried');
+  const stuck = tried?.version === updateVersion && Date.now() - tried.at < 30 * 60_000;
+  bar.replaceChildren(
+    h('span', null, stuck
+      ? `Still finishing the update to v${updateVersion}. Close every Fantasy Sweat window, then open it again.`
+      : `Fantasy Sweat v${updateVersion} is available.`),
+    updateButton());
+  bar.hidden = false;
+  showVersion();
+}
+
+const updateButton = () => h('button', { type: 'button', class: 'update-now', onclick: applyUpdate }, 'Update now');
+
+// Restart Fantasy Sweat onto the new version (this closes the popup, popout and full tab).
+async function applyUpdate() {
+  await store.set('updateTried', { version: updateVersion, at: Date.now() });
+  chrome.runtime.reload();
+}
+
+// Chrome also says so itself when an update has downloaded while Fantasy Sweat is open.
+try {
+  chrome.runtime.onUpdateAvailable.addListener((details) => {
+    updateVersion = details.version;
+    store.set('storeUpdate', { checkedAt: Date.now(), version: details.version });
+    showUpdate();
+  });
+} catch { /* not running as an extension */ }
 
 // Full-tab view: bring back the one that's already open (found by its page), or open it. From the
 // popout this is "Back to tab", which also closes the popout, so clicks can't pile up new tabs.
@@ -1875,5 +1949,6 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
   });
   document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x.dataset.view === view));
   showVersion();
+  checkForUpdate(); // at most every 3 hours; a newer version found before still shows
   refresh();
 })();
