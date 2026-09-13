@@ -24,7 +24,9 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 
 ## 1.0.3 — 2026-09-12
 
-No changes to the extension itself; this was the first version uploaded by the automatic publish workflow. Version 1.0.2 was skipped.
+No changes to the extension itself; this was the first version uploaded by the automatic publish workflow.
+
+_There is no 1.0.2. It was skipped by accident: the last version number was forgotten when this one was picked, and nothing was ever released as 1.0.2._
 
 - README rewritten for installing from the Chrome Web Store. (#17)
 - Publish workflow moved to `actions/checkout` and `actions/setup-node` v5. (#16)
