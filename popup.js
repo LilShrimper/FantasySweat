@@ -327,6 +327,9 @@ async function getGames(season, week, seasonType) {
     const comp = e.competitions[0];
     const home = comp.competitors.find((c) => c.homeAway === 'home');
     const away = comp.competitors.find((c) => c.homeAway === 'away');
+    // Live games only: who has the ball and whether they're inside the other team's 20.
+    const situation = e.status.type.state === 'in' ? comp.situation || {} : {};
+    const withBall = comp.competitors.find((c) => c.team.id === situation.possession);
     const g = {
       id: e.id,
       date: new Date(e.date),
@@ -345,6 +348,8 @@ async function getGames(season, week, seasonType) {
       period: e.status.period, // quarter (5+ = OT)
       clock: e.status.clock,   // seconds left in the quarter
       network: (comp.broadcasts || []).flatMap((b) => b.names || []).join('/') || comp.broadcast || '', // "CBS", "ESPN/ABC"
+      possession: withBall ? normTeam(withBall.team.abbreviation) : null, // null right after a score, at halftime, …
+      redZone: !!withBall && !!situation.isRedZone,
     };
     byTeam[g.home] = g;
     byTeam[g.away] = g;
@@ -677,6 +682,23 @@ const gameWhen = (g) => {
   const t = g.state === 'pre' ? kickoff(g.date) : g.detail;
   return g.network && g.state !== 'post' ? `${t} · ${g.network}` : t;
 };
+// Whether a player's unit is on the field while his game is live, for the dot by his points: 'field',
+// 'redzone', or null (sideline, or ESPN isn't saying who has the ball). No free feed lists who's on the
+// field play by play, so it goes by possession: offense (QB/RB/WR/TE/K) is on while his team has the
+// ball, a D/ST while the other team does; "red zone" is that team inside the other's 20.
+const FIELD_STATES = { field: 'on the field', redzone: 'in the red zone' };
+function fieldState(g, info) {
+  if (g?.state !== 'in' || !g.possession) return null;
+  const hasBall = g.possession === info.team;
+  if (info.pos === 'DEF' ? hasBall : !hasBall) return null;
+  return g.redZone ? 'redzone' : 'field';
+}
+// Class and tooltip for a player's points box: dimmed before kickoff, a dot while his unit is on the field.
+function ptsBox(g, info, title) {
+  const state = fieldState(g, info);
+  if (state) return { class: `pl-pts ${state}`, title: `${title} · ${FIELD_STATES[state]}` };
+  return { class: `pl-pts ${g && g.state !== 'pre' ? '' : 'pre'}`, title };
+}
 // A player's game from his side: "@ PIT · Sun 1:00 PM · FOX", or "No game" on a bye.
 const gameLine = (g, team) => {
   if (!g) return 'No game';
@@ -779,7 +801,7 @@ const legChip = (leg, extra = '') => h('span', {
 
 function playerRow(pl, { showGame = false } = {}) {
   const g = pl.game;
-  const started = g && g.state !== 'pre';
+  const box = ptsBox(g, pl.info, 'Live fantasy points');
   const chips = pl.legs.map((l) => legChip(l));
   const gameText = showGame ? gameLine(g, pl.info.team) : null;
   return h('div', { class: 'pl' },
@@ -791,8 +813,8 @@ function playerRow(pl, { showGame = false } = {}) {
         h('span', { title: rankTitle(pl) }, `${pl.info.pos}${pl.rank || ''}${pl.info.team ? ' · ' + pl.info.team : ''}`),
         injBadge(pl.info.inj), chips,
         gameText && h('span', null, gameText))),
-    h('div', { class: `pl-pts ${g?.state === 'in' ? 'live' : ''} ${started ? '' : 'pre'}` },
-      h('span', { class: 'v', title: 'Live fantasy points' }, fmt2(pl.ptsShown)),
+    h('div', { class: box.class },
+      h('span', { class: 'v', title: box.title }, fmt2(pl.ptsShown)),
       lastPlays.has(pl.pid) ? gainTag(pl, lastPlays.get(pl.pid)) : null,
       h('span', { class: 'p' }, `proj ${fmt2(pl.projShown)}`)));
 }
@@ -984,7 +1006,7 @@ function rosterRow(r) {
     return h('div', { class: 'pl ro-row' }, h('span', { class: 'ro-slot' }, r.slot), h('div', { class: 'pl-main empty' }, 'Empty'));
   }
   const g = r.game;
-  const started = g && g.state !== 'pre';
+  const box = ptsBox(g, r.info, 'Fantasy points');
   return h('div', { class: 'pl ro-row' },
     h('span', { class: 'ro-slot' }, r.slot),
     h('div', { class: 'pl-main' },
@@ -995,8 +1017,8 @@ function rosterRow(r) {
         h('span', null, `${r.info.pos}${r.rank || ''}${r.info.team ? ' · ' + r.info.team : ''}`),
         injBadge(r.info.inj),
         h('span', null, gameLine(g, r.info.team)))),
-    h('div', { class: `pl-pts ${g?.state === 'in' ? 'live' : ''} ${started ? '' : 'pre'}` },
-      h('span', { class: 'v', title: 'Fantasy points' }, fmt2(r.pts)),
+    h('div', { class: box.class },
+      h('span', { class: 'v', title: box.title }, fmt2(r.pts)),
       h('span', { class: 'p' }, `proj ${fmt2(r.proj)}`)));
 }
 
