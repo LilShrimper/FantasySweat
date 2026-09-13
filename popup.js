@@ -1017,6 +1017,33 @@ function renderRoster() {
   el.hidden = false;
 }
 
+// ---------- bench ----------
+const BENCH_SLOTS = ['BN', 'IR', 'TAXI'];
+
+// Your benched players, one card per league (the leagues picked on the cards, or all of them): points
+// once a player's game kicks off, projection before, highest first.
+function renderBench(model) {
+  const leagues = model.leagues.filter((ld) => ld.me?.roster
+    && (!selectedLeagues.length || selectedLeagues.includes(ld.league.league_id)));
+  if (!leagues.length) return emptyFiltered('No rosters loaded yet.');
+  const sortValue = (r) => (r.game && r.game.state !== 'pre' ? r.pts : r.proj);
+  const total = (list, key) => list.reduce((t, r) => t + (r[key] || 0), 0);
+  const cards = leagues.map((ld) => {
+    const all = ld.me.roster.filter((r) => r.pid && BENCH_SLOTS.includes(r.slot));
+    const shown = all.filter((r) => matchesFilter(r.game)).sort((a, b) => sortValue(b) - sortValue(a) || b.proj - a.proj);
+    return h('div', { class: 'game bench-card', style: `--lc:${ld.color}` },
+      h('div', { class: 'g-head' },
+        h('div', null,
+          h('span', { class: 'matchup' }, ld.league.name),
+          h('div', null, h('span', { class: 'gstat' }, teamLabel(ld, ld.me)))),
+        h('span', { class: 'bench-sum' }, `${fmt2(total(all, 'pts'))} pts`, h('span', { class: 'pj' }, ` · proj ${fmt2(total(all, 'proj'))}`))),
+      h('div', { class: 'col' },
+        shown.length ? shown.map(rosterRow)
+          : h('div', { class: 'empty' }, all.length ? 'No bench players in this time window' : 'Nobody on the bench')));
+  });
+  return h('div', { class: 'games' }, cards);
+}
+
 // ---------- live plays ----------
 // { key, games: { [sleeperGameId]: { final, plays: { [playId]: play } } } } — only the week on screen is
 // saved (~1 MB a week), since Live plays only shows games in progress; older weeks are dropped.
@@ -1362,7 +1389,7 @@ function render() {
   }
   fillFilter(model, scoped);
   renderMustWatch(scoped);
-  const views = { games: renderGames, players: renderPlayers, teams: renderTeams, plays: renderPlays };
+  const views = { games: renderGames, players: renderPlayers, teams: renderTeams, plays: renderPlays, bench: renderBench };
   $('#view').replaceChildren(
     (views[view] || renderGames)(scoped),
     h('div', { class: 'foot' }, 'Data: Sleeper API & Game Center plays · ESPN fantasy (ESPN leagues) · schedule & live scores: ESPN. Chips show which league (+ yours, − opponent’s).'));
