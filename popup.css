@@ -45,7 +45,12 @@ button, select, input { font: inherit; color: inherit; }
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   padding: 10px 12px; background: var(--bg); border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 9px; min-width: 0; border-radius: 8px; }
+/* In Settings the logo and title lead back to the main view */
+.brand.back { cursor: pointer; }
+.brand.back:hover .title { text-decoration: underline; }
+.brand:focus { outline: none; }
+.brand.back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .logo {
   display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px;
   background: linear-gradient(135deg, var(--cheer), var(--accent)); color: #fff;
@@ -68,6 +73,9 @@ button, select, input { font: inherit; color: inherit; }
 .setup input { flex: 1; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); }
 .setup > input { width: 100%; }
 .hint { margin-top: 5px; font-size: 11.5px; color: var(--hedge); }
+/* "You have unsaved changes" bar, shown when leaving Settings by the logo or ⚙ */
+.discard { margin-bottom: 12px; padding: 10px; border-radius: 8px; border: 1px solid var(--hedge); background: var(--hedge-bg); font-size: 12.5px; }
+.setup .discard .row { justify-content: flex-end; margin-top: 8px; }
 .setup label .opt { color: var(--muted); font-size: 11.5px; }
 
 /* ESPN leagues in Settings */

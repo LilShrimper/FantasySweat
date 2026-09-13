@@ -8,7 +8,7 @@
 </head>
 <body>
   <header class="top">
-    <div class="brand">
+    <div class="brand" id="brand" role="button" tabindex="0">
       <span class="logo">FS</span>
       <div>
         <div class="title">Fantasy Sweat</div>
@@ -25,6 +25,13 @@
   </header>
 
   <form id="setup" class="setup" hidden>
+    <div id="discardPrompt" class="discard" role="alert" hidden>
+      <div>You have unsaved changes. Leave Settings without saving them?</div>
+      <div class="row">
+        <button type="button" id="discardKeep" class="ghost">Keep editing</button>
+        <button type="button" id="discardLeave" class="primary">Discard changes</button>
+      </div>
+    </div>
     <label for="username">Sleeper username <span class="opt">(optional if you add an ESPN league)</span></label>
     <input id="username" autocomplete="off" spellcheck="false" placeholder="e.g. Rakii" maxlength="30"
            pattern="[A-Za-z0-9_]+" title="Letters, numbers and underscores only">
