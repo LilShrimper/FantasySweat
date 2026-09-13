@@ -208,6 +208,10 @@ body.full .games { grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
 .pl-pts { text-align: right; font-variant-numeric: tabular-nums; flex: none; }
 .pl-pts .v { font-weight: 700; }
 .pl-pts .p { display: block; font-size: 10.5px; color: var(--muted); }
+/* Latest scoring play beside the points: "+6.5" */
+.gain { margin-left: 4px; font-size: 10.5px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; cursor: help; }
+.gain.good { color: var(--cheer); }
+.gain.bad { color: var(--boo); }
 .inj { font-size: 9.5px; font-weight: 800; color: #fff; background: var(--boo); border-radius: 3px; padding: 0 3px; }
 .inj.q { background: var(--hedge); }
 
