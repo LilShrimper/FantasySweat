@@ -784,7 +784,35 @@ function leagueCard(ld) {
         who(opp, 'opp'), standing(opp),
         h('span', { class: 'pj' }, `proj ${fmt2(opp.proj)}`), ' ',
         h('span', { class: 'pts', style: `color:${winColor(1 - p)}` }, fmtPts(opp.m.points)))), // their side of the odds
-    h('div', { class: 'bar', title: `Win chance ${Math.round(p * 100)}%` }, h('i', { style: `width:${(p * 100).toFixed(1)}%` })));
+    h('div', { class: 'bar', title: `Win chance ${Math.round(p * 100)}%` }, h('i', { style: `width:${(p * 100).toFixed(1)}%` })),
+    toPlayLine(ld));
+}
+
+// "2 RB, 1 WR, 1 K": a team's starters whose games haven't kicked off yet, counted by position
+// (QB, RB, WR, TE, K, D/ST, then anything else). Bench and empty lineup slots don't count.
+function stillToPlay(side) {
+  const counts = {};
+  for (const r of side?.roster || []) {
+    if (!r.pid || BENCH_SLOTS.includes(r.slot) || r.game?.state !== 'pre') continue;
+    counts[r.info.pos] = (counts[r.info.pos] || 0) + 1;
+  }
+  const rank = (pos) => (POS_ORDER.includes(pos) ? POS_ORDER.indexOf(pos) : POS_ORDER.length);
+  return Object.entries(counts)
+    .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
+    .map(([pos, n]) => `${n} ${pos === 'DEF' ? 'D/ST' : pos}`)
+    .join(', ');
+}
+
+// Under the win bar: each side's starters still to play. Players drop off as their games kick off,
+// and the line goes once nobody's left on either side.
+function toPlayLine(ld) {
+  if (!current?.model.games.some((g) => !g.none)) return null; // no schedule loaded: can't tell who has played
+  const mine = stillToPlay(ld.me), theirs = stillToPlay(ld.opp);
+  if (!mine && !theirs) return null;
+  return h('div', { class: 'to-play', title: 'Starters whose games haven’t kicked off yet' },
+    h('span', null, mine || '—'),
+    h('span', { class: 'to-play-label' }, 'still to play'),
+    h('span', { class: 'r' }, theirs || '—'));
 }
 
 function injBadge(inj) {

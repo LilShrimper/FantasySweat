@@ -4,6 +4,11 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### New
+- **Still to play:** under the win bar on each league card, the starters still to play for you and your opponent, by position (e.g. "2 RB, 1 WR, 1 K"). Players drop off as their games kick off.
+
 ## 1.0.5 — 2026-09-13
 
 ### New
