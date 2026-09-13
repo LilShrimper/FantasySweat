@@ -196,6 +196,12 @@ body.full .leagues { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)
 .tabs button { flex: 1; border: 0; background: none; padding: 6px; border-radius: 7px; cursor: pointer; color: var(--muted); font-weight: 600; }
 .tabs button.on { background: var(--panel2); color: var(--text); }
 
+.tabs button { padding: 6px 2px; white-space: nowrap; } /* five tabs fit the 460px popup on one line */
+
+/* Bench tab: one card per league */
+.bench-card { border-left: 4px solid var(--lc); }
+.bench-sum { font-size: 12px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
 /* Game cards */
 .games { display: grid; gap: 8px; }
 body.full .games { grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); }
