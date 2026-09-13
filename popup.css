@@ -62,7 +62,10 @@ button, select, input { font: inherit; color: inherit; }
   margin-left: 4px; padding: 0 5px; border-radius: 4px; vertical-align: 2px;
   font-size: 9.5px; font-weight: 800; letter-spacing: .5px; color: #0f1420; background: var(--hedge);
 }
-.sub { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brand > div { min-width: 0; } /* lets the subtitle shrink (…) instead of sliding under the controls */
+.sub { display: flex; min-width: 0; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+.sub-text { overflow: hidden; text-overflow: ellipsis; }
+.sub-live { flex: none; margin-left: .3em; color: var(--live); font-weight: 700; }
 .controls { display: flex; gap: 4px; flex: none; }
 .controls button, .controls select {
   height: 28px; min-width: 28px; padding: 0 7px; border-radius: 7px;

@@ -1474,7 +1474,7 @@ function cardOrder(leagues) {
 
 function render() {
   if (!current) return;
-  const { week, user } = current;
+  const { user } = current;
   // Leagues unchecked in Settings drop out of everything; the rest behave as if they were all you had.
   const full = current.model;
   const visible = full.leagues.filter((ld) => !hiddenLeagues.includes(ld.league.league_id));
@@ -1482,7 +1482,11 @@ function render() {
     ? { ...scopeToLeague(full, visible.map((ld) => ld.league.league_id), { keepAll: true }), leagues: visible }
     : full;
   const anyLive = model.games.some((g) => g.state === 'in');
-  $('#sub').textContent = `${user ? `@${user.display_name} · ` : ''}Week ${week} · updated ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}${anyLive ? ' · LIVE' : ''}`;
+  // Header subtitle: who and when (the week dropdown beside it already shows the week). LIVE is its own piece,
+  // so on a narrow popup a long username is cut short with … instead of LIVE disappearing.
+  $('#sub').replaceChildren(
+    h('span', { class: 'sub-text' }, `${user ? `@${user.display_name} · ` : ''}updated ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`),
+    anyLive ? h('span', { class: 'sub-live' }, '· LIVE') : null);
   // Keep only picks that have a matchup this week; picking every league is the same as no filter.
   const selectable = model.leagues.filter((ld) => ld.opp);
   const picked = selectable.filter((ld) => selectedLeagues.includes(ld.league.league_id));
