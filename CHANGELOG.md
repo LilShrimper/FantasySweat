@@ -8,6 +8,7 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 
 ### New
 - **Version in Settings:** the bottom of Settings shows the version you're running (e.g. "Fantasy Sweat v1.0.4"), with a **What's new** link to the Releases page.
+- **Closest matchups first:** a Settings option (Display) orders the league cards by how close each matchup is, with win chance nearest 50/50 at the top.
 
 ### Changed
 - **Live dot:** the dot by a player's points now shows only while his unit is on the field. It's green normally and red, fading in and out, in the red zone: his offense inside the other team's 20, or his D/ST defending its own. The live marker on game cards is solid red instead of flashing. (#24)
