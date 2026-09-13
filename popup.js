@@ -682,21 +682,22 @@ const gameWhen = (g) => {
   const t = g.state === 'pre' ? kickoff(g.date) : g.detail;
   return g.network && g.state !== 'post' ? `${t} · ${g.network}` : t;
 };
-// Where a player is while his game is live, for the dot by his points. No free feed lists who's on the
-// field play by play, so it goes by possession: offense (QB/RB/WR/TE/K) is on the field while his team
-// has the ball, a D/ST while the other team does; "red zone" is that team inside the other's 20.
-const FIELD_STATES = { field: 'on the field', redzone: 'in the red zone', sideline: 'on the sideline', unknown: 'no possession right now' };
+// Whether a player's unit is on the field while his game is live, for the dot by his points: 'field',
+// 'redzone', or null (sideline, or ESPN isn't saying who has the ball). No free feed lists who's on the
+// field play by play, so it goes by possession: offense (QB/RB/WR/TE/K) is on while his team has the
+// ball, a D/ST while the other team does; "red zone" is that team inside the other's 20.
+const FIELD_STATES = { field: 'on the field', redzone: 'in the red zone' };
 function fieldState(g, info) {
-  if (!g.possession) return 'unknown';
+  if (g?.state !== 'in' || !g.possession) return null;
   const hasBall = g.possession === info.team;
-  if (info.pos === 'DEF' ? hasBall : !hasBall) return 'sideline';
+  if (info.pos === 'DEF' ? hasBall : !hasBall) return null;
   return g.redZone ? 'redzone' : 'field';
 }
-// Class and tooltip for a player's points box: dimmed before kickoff, a colored dot while live.
+// Class and tooltip for a player's points box: dimmed before kickoff, a dot while his unit is on the field.
 function ptsBox(g, info, title) {
-  if (g?.state !== 'in') return { class: `pl-pts ${g && g.state !== 'pre' ? '' : 'pre'}`, title };
   const state = fieldState(g, info);
-  return { class: `pl-pts live ${state}`, title: `${title} · ${FIELD_STATES[state]}` };
+  if (state) return { class: `pl-pts ${state}`, title: `${title} · ${FIELD_STATES[state]}` };
+  return { class: `pl-pts ${g && g.state !== 'pre' ? '' : 'pre'}`, title };
 }
 // A player's game from his side: "@ PIT · Sun 1:00 PM · FOX", or "No game" on a bye.
 const gameLine = (g, team) => {

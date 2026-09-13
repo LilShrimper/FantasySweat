@@ -288,15 +288,14 @@ body.win { width: auto; }
 .cols.one { grid-template-columns: 1fr; }
 .cols > .col.span:first-child { border-top: 0; }
 
-/* Live points: dimmed before kickoff; while the game is on, a dot for where the player is —
-   green on the field, yellow on the sideline (or no possession), red fading in and out in the red zone */
+/* Live points: dimmed before kickoff; a dot only while his unit is on the field —
+   green, or red fading in and out in the red zone */
 .pl-pts.pre .v { color: var(--muted); font-weight: 600; }
-.pl-pts.live .v::before {
+.pl-pts.field .v::before, .pl-pts.redzone .v::before {
   content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
-  background: var(--hedge); margin-right: 4px; vertical-align: middle;
+  background: var(--cheer); margin-right: 4px; vertical-align: middle;
 }
-.pl-pts.live.field .v::before { background: var(--cheer); }
-.pl-pts.live.redzone .v::before { background: var(--live); animation: pulse 1.4s infinite; }
+.pl-pts.redzone .v::before { background: var(--live); animation: pulse 1.4s infinite; }
 
 /* Live plays: two columns, newest first */
 .lp-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
