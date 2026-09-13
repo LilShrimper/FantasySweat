@@ -1723,6 +1723,22 @@ const pageURL = (query = '') => {
   return isExtension ? chrome.runtime.getURL(page) : page;
 };
 
+// Bottom of Settings: the version actually running (the store copy, or an unpacked folder's manifest),
+// with a link to what changed in each version.
+async function showVersion() {
+  let version = null;
+  try {
+    version = isExtension && chrome.runtime.getManifest
+      ? chrome.runtime.getManifest().version
+      : (await (await fetch('manifest.json', { cache: 'no-store' })).json()).version;
+  } catch { /* leave the line hidden */ }
+  if (!version) return;
+  $('#appVersion').replaceChildren(
+    `Fantasy Sweat v${version} · `,
+    h('a', { href: 'https://github.com/LilShrimper/FantasySweat/releases', target: '_blank', rel: 'noopener' }, 'What’s new'));
+  $('#appVersion').hidden = false;
+}
+
 // Full-tab view: bring back the one that's already open (found by its page), or open it. From the
 // popout this is "Back to tab", which also closes the popout, so clicks can't pile up new tabs.
 $('#expand').addEventListener('click', async () => {
@@ -1815,5 +1831,6 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
     render();
   });
   document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x.dataset.view === view));
+  showVersion();
   refresh();
 })();
