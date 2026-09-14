@@ -4,6 +4,11 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### Changed
+- **Update now** checks for a new version every 30 minutes instead of every 3 hours, so a release shows up much sooner. Opening Settings still checks right away.
+
 ## 1.0.6 — 2026-09-13
 
 ### New
