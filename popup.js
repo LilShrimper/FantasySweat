@@ -136,6 +136,15 @@ async function getSeasonRanks(season, seasonType) {
   return map;
 }
 
+// This week's stats per player (pid → stats). Sleeper's servers keep this only a few seconds, while
+// league matchups can be minutes behind, so live scores are worked out from it (see liveScores).
+async function getWeekStats(season, week, seasonType) {
+  const arr = await getJSON(`${STATS}/${season}/${week}?season_type=${seasonType}&${POS_QS}`);
+  const map = new Map();
+  for (const r of arr || []) if (r.stats) map.set(String(r.player_id), r.stats);
+  return map;
+}
+
 // Sleeper's schedule — its own game ids, which the plays feed is keyed by.
 let scheduleCache = null;
 async function getSleeperSchedule(season, seasonType) {
@@ -465,7 +474,7 @@ async function loadAll(username, weekOverride) {
 
   // Season points ranks only mean something once Week 1 is done; until then use the preseason PPR rank.
   const useSeasonRanks = state.week > 1 || state.seasonType === 'post';
-  const [proj, games, leagueData, dump, seasonRanks, espnRaw] = await Promise.all([
+  const [proj, games, leagueData, dump, seasonRanks, espnRaw, weekStats] = await Promise.all([
     getProjections(state.season, week, state.seasonType).catch(() => ({})),
     getGames(state.season, week, state.seasonType).catch(() => ({})),
     Promise.all(leagues.map((l) => loadLeague(l, user.user_id, week).catch((e) => ({ league: l, skip: e.message })))),
@@ -474,7 +483,9 @@ async function loadAll(username, weekOverride) {
     Promise.all(espnLeagues.map((c) => espnPeriod(c.id, state.season, week)
       .then((period) => getEspnLeague(c.id, state.season, week, period).then((d) => ({ c, d, period })))
       .catch((e) => ({ c, err: e.message })))),
+    leagues.length ? getWeekStats(state.season, week, state.seasonType).catch(() => null) : null,
   ]);
+  liveScores(leagueData, weekStats, games, proj, dump);
 
   let ranks = { map: seasonRanks || {}, season: !!seasonRanks };
   if (!seasonRanks) {
@@ -491,6 +502,55 @@ async function loadAll(username, weekOverride) {
 
   return { state, week, user, model: buildModel([...leagueData, ...espnData], proj, dump, games, ranks, extraInfo) };
 }
+
+// Sleeper leagues: while a player's game is live, score him from this week's stats × the league's
+// scoring instead of the matchup's players_points, which Sleeper can serve minutes old. Everyone else
+// (game not started or final, no stats row, stats didn't load) keeps Sleeper's own number, so final
+// scores always match the Sleeper app. m.live lists who was scored from stats; the team total moves
+// by the same amount as its live starters did.
+function liveScores(leagueData, stats, games, proj, dump) {
+  if (!stats) return;
+  for (const ld of leagueData) {
+    for (const s of [ld.me, ld.opp]) {
+      if (!s?.m) continue;
+      const pts = { ...s.m.players_points };
+      const starters = new Set(s.m.starters || []);
+      const live = new Set();
+      let change = 0;
+      for (const pid of new Set([...Object.keys(pts), ...starters])) {
+        if (!pid || pid === '0') continue;
+        const g = games[playerInfo(pid, proj, dump).team];
+        if (g?.state !== 'in' || !stats.has(pid)) continue;
+        const now = Math.round(leagueProj(stats.get(pid), ld.league.scoring_settings) * 100) / 100;
+        if (starters.has(pid)) change += now - (pts[pid] ?? 0);
+        pts[pid] = now;
+        live.add(pid);
+      }
+      if (!live.size) continue;
+      s.m = { ...s.m, players_points: pts, points: Math.round(((s.m.points || 0) + change) * 100) / 100, live };
+    }
+  }
+}
+
+// Where a player's points came from, for the hover text: 'live' (scored from live stats), 'sleeper'
+// (the matchup's own number) or null for ESPN leagues.
+const ptsSrc = (ld, m, pid) => (ld.league.espn ? null : m.live?.has(pid) ? 'live' : 'sleeper');
+const SRC_NOTES = {
+  live: 'from Sleeper’s live stats (the Sleeper app can be a few minutes behind)',
+  sleeper: 'Sleeper’s matchup score',
+};
+const srcNote = (srcs) => {
+  const src = srcs.includes('live') ? 'live' : srcs.includes('sleeper') ? 'sleeper' : null;
+  return src ? ` · ${SRC_NOTES[src]}` : '';
+};
+
+// Hover text for a team's total on a league card (Sleeper leagues only).
+const totalNote = (ld, s) => {
+  if (ld.league.espn) return null;
+  const n = [...(s.m.live || [])].filter((pid) => s.m.starters?.includes(pid)).length;
+  return n ? `Includes ${n} live starter${n === 1 ? '' : 's'} scored from Sleeper’s live stats (the Sleeper app can be a few minutes behind)`
+    : 'Sleeper’s matchup score';
+};
 
 // ---------- the actual "who do I cheer for" logic ----------
 // A player's projected fantasy points under this league's scoring: projected stats × scoring values.
@@ -570,7 +630,7 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
         let pl = players.get(pid);
         if (!pl) players.set(pid, (pl = { pid, legs: [], net: 0, impact: 0 }));
         const pj = projMap ? (projMap[pid] ?? 0) : leagueProj(proj[pid]?.stats, ld.league.scoring_settings);
-        pl.legs.push({ ld, side, pts: pts[pid] ?? 0, proj: pj });
+        pl.legs.push({ ld, side, pts: pts[pid] ?? 0, proj: pj, src: ptsSrc(ld, matchup, pid) });
         pl.net += side;
         pl.impact += side * Math.max(pj, 1); // weight by projection; unprojected guys still count a little
       }
@@ -597,7 +657,7 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
         if (!pid) return { pid, slot };
         const info = playerInfo(pid, proj, dump, extraInfo);
         const pj = s.projMap ? (s.projMap[pid] ?? 0) : leagueProj(proj[pid]?.stats, ld.league.scoring_settings);
-        return { pid, slot, info, rank: ranks?.map[pid] ?? null, game: games[info.team] || null, pts: s.m.players_points?.[pid] ?? 0, proj: pj };
+        return { pid, slot, info, rank: ranks?.map[pid] ?? null, game: games[info.team] || null, pts: s.m.players_points?.[pid] ?? 0, proj: pj, src: ptsSrc(ld, s.m, pid) };
       });
     }
   }
@@ -781,7 +841,7 @@ function leagueCard(ld) {
     h('div', { class: 'lg-score' },
       h('div', { class: 'side' },
         who(me, 'me'), standing(me),
-        h('span', { class: 'pts', style: `color:${color}` }, fmtPts(me.m.points)), ' ',
+        h('span', { class: 'pts', style: `color:${color}`, title: totalNote(ld, me) }, fmtPts(me.m.points)), ' ',
         h('span', { class: 'pj' }, `proj ${fmt2(me.proj)}`)),
       h('div', { class: 'mid' },
         h('span', { class: 'vs' }, 'vs'),
@@ -789,7 +849,7 @@ function leagueCard(ld) {
       h('div', { class: 'side r' },
         who(opp, 'opp'), standing(opp),
         h('span', { class: 'pj' }, `proj ${fmt2(opp.proj)}`), ' ',
-        h('span', { class: 'pts', style: `color:${winColor(1 - p)}` }, fmtPts(opp.m.points)))), // their side of the odds
+        h('span', { class: 'pts', style: `color:${winColor(1 - p)}`, title: totalNote(ld, opp) }, fmtPts(opp.m.points)))), // their side of the odds
     h('div', { class: 'bar', title: `Win chance ${Math.round(p * 100)}%` }, h('i', { style: `width:${(p * 100).toFixed(1)}%` })),
     toPlayLine(ld));
 }
@@ -836,7 +896,7 @@ const legChip = (leg, extra = '') => h('span', {
 
 function playerRow(pl, { showGame = false } = {}) {
   const g = pl.game;
-  const box = ptsBox(g, pl.info, 'Live fantasy points');
+  const box = ptsBox(g, pl.info, `Live fantasy points${srcNote(pl.legs.map((l) => l.src))}`);
   const chips = pl.legs.map((l) => legChip(l));
   const gameText = showGame ? gameLine(g, pl.info.team) : null;
   return h('div', { class: 'pl' },
@@ -1052,7 +1112,7 @@ function rosterRow(r) {
     return h('div', { class: 'pl ro-row' }, h('span', { class: 'ro-slot' }, r.slot), h('div', { class: 'pl-main empty' }, 'Empty'));
   }
   const g = r.game;
-  const box = ptsBox(g, r.info, 'Fantasy points');
+  const box = ptsBox(g, r.info, `Fantasy points${srcNote([r.src])}`);
   return h('div', { class: 'pl ro-row' },
     h('span', { class: 'ro-slot' }, r.slot),
     h('div', { class: 'pl-main' },

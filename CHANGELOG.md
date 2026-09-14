@@ -4,6 +4,11 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### Changed
+- **Faster live scores (Sleeper leagues):** while a player's game is in progress, his points are worked out from Sleeper's live stats and your league's scoring. Sleeper's matchup scores can be a few minutes old, so league card totals, win chance and player points now keep up with Live plays. Players whose game hasn't started or is final still show Sleeper's own number, so final scores match the Sleeper app. If the live stats don't load, everything uses Sleeper's number as before. Hover a score to see where it came from.
+
 ## 1.0.7 — 2026-09-13
 
 ### New
