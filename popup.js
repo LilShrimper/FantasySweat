@@ -1142,6 +1142,9 @@ function renderRoster() {
   const starters = s.roster.filter((r) => !['BN', 'IR', 'TAXI'].includes(r.slot));
   const bench = s.roster.filter((r) => r.slot === 'BN');
   const reserve = s.roster.filter((r) => r.slot === 'IR' || r.slot === 'TAXI');
+  // Titled by what's there, since most leagues have no taxi squad.
+  const reserveTitle = [reserve.some((r) => r.slot === 'IR') && 'IR', reserve.some((r) => r.slot === 'TAXI') && 'Taxi']
+    .filter(Boolean).join(' / ');
   const total = (list, key) => list.reduce((t, r) => t + (r[key] || 0), 0);
   const section = (title, list, note) => list.length
     ? h('div', { class: 'ro-sec' }, h('h4', null, title, note ? h('span', { class: 'ro-note' }, note) : null), list.map(rosterRow))
@@ -1157,7 +1160,7 @@ function renderRoster() {
       h('div', { class: 'ro-sum' }, `${fmtPts(s.m.points)} pts · proj ${fmt2(s.proj)}`),
       section('Starters', starters),
       section('Bench', bench, `${fmt2(total(bench, 'pts'))} pts`),
-      section('IR / Taxi', reserve)));
+      section(reserveTitle, reserve)));
   el.hidden = false;
 }
 
