@@ -1600,7 +1600,7 @@ async function showSetup() {
     const fallback = initials(ld.league.name);
     const preview = h('span', { class: 'chip for', style: `--lc:${ld.color}` }, leagueTag(ld.league));
     const input = h('input', {
-      class: 'nick', 'data-id': id, maxlength: '10', placeholder: fallback, title: 'Tag shown on player chips',
+      class: 'nick', 'data-id': id, maxlength: '10', placeholder: fallback, title: 'Nickname shown on player chips',
       value: nicknames[id] || '', spellcheck: 'false', autocomplete: 'off',
     });
     input.addEventListener('input', () => { preview.textContent = input.value.trim() || fallback; });
