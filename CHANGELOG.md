@@ -4,14 +4,14 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
-## Unreleased
+## 1.0.7 — 2026-09-13
 
 ### New
-- **League nicknames as card titles:** a Settings option (Display) titles each league card with the nickname you gave that league instead of its full name. Leagues without a nickname keep their name, and hovering a nickname shows the real one.
+- **League nicknames as card titles:** a Settings option (Display) titles each league card with the nickname you gave that league instead of its full name. Leagues without a nickname keep their name, and hovering a nickname shows the real one. Settings now calls a league's short tag its **nickname**. (#40)
 
 ### Changed
-- **Update now** checks for a new version every 30 minutes instead of every 3 hours, so a release shows up much sooner. Opening Settings still checks right away.
-- **Latest scoring play:** the "+7.4" beside a player's points goes away once his game is final.
+- **Update now** checks for a new version every 30 minutes instead of every 3 hours, so a release shows up much sooner. Opening Settings still checks right away. (#38)
+- **Latest scoring play:** the "+7.4" beside a player's points goes away once his game is final. (#39)
 
 ## 1.0.6 — 2026-09-13
 
