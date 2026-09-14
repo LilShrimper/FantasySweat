@@ -8,6 +8,7 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 
 ### Changed
 - **Update now** checks for a new version every 30 minutes instead of every 3 hours, so a release shows up much sooner. Opening Settings still checks right away.
+- **Latest scoring play:** the "+7.4" beside a player's points goes away once his game is final.
 
 ## 1.0.6 — 2026-09-13
 

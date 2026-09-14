@@ -1255,13 +1255,14 @@ function scorePlay(play, byPid, defs) {
 }
 
 // Each player's latest fantasy-scoring play (pid → { pts, play }), for the "+0.3" beside his points.
-// It stays until his next one, so it's still there after his game ends.
+// It stays until his next one, and goes away once his game is final.
 function latestPlays(model) {
   const out = new Map();
   if (!playGameIds || !playsCache) return out;
   const byPid = new Map(model.players.map((p) => [p.pid, p]));
   const defs = model.players.filter((p) => p.info.pos === 'DEF');
   for (const g of model.games) {
+    if (g.state === 'post') continue;
     const plays = playsCache.games[playGameIds[g.id]]?.plays;
     if (!plays) continue;
     for (const play of Object.values(plays).sort((a, b) => b.t - a.t || b.seq - a.seq)) {
