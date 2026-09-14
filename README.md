@@ -7,7 +7,7 @@ A Chrome extension that pulls your Sleeper and ESPN fantasy football matchups an
 ## Features
 
 - **League cards**: your score vs your opponent's in every league, with projected totals, win % (Sleeper's own formula, including in-game projections), records and standings. Click a card to show only that league; Shift+click (or Ctrl+click) to pick several.
-- **By game / By player / By NFL team**: every starter sorted into *cheer for* or *root against*. Players you start in one league who face you in another are marked "Coin flip".
+- **By game / By player / By NFL team**: every starter sorted into *cheer for* or *root against*. Players you start in one league who face you in another are marked "Coin flip". Click any player for a **points breakdown** (receptions, yards, TDs and so on) under each league's scoring.
 - **Live plays**: the latest fantasy-scoring plays for you and against you from games in progress, with each play's points under each league's scoring.
 - **Filters**: by kickoff window (e.g. Sun 1:00 PM), live now, or still to play.
 - **Must-watch**: the unfinished game with the most projected fantasy points riding on it.
@@ -32,7 +32,7 @@ All public, no login needed:
 | Data | Source |
 |---|---|
 | Leagues, rosters, matchups, live points | Sleeper API (`api.sleeper.app`) |
-| Projections, season stats, schedule, player list | `api.sleeper.com` |
+| Projections, live and season stats, schedule, player list | `api.sleeper.com` |
 | Play-by-play with per-player stats | Sleeper Game Center feed (`sleeper.com/graphql`) |
 | ESPN leagues: matchups, lineups, projections, win probability | ESPN Fantasy API (`lm-api-reads.fantasy.espn.com`) |
 | NFL schedule, live scores, game clock, team records, TV networks | ESPN scoreboard (`site.api.espn.com`) |

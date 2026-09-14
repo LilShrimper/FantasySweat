@@ -259,6 +259,7 @@ function espnLeagueData(d, cfg, week, period, dump, extraInfo) {
     name: d.settings?.name || `ESPN league ${cfg.id}`,
     scoring_settings: espnScoring(d.settings?.scoringSettings?.scoringItems),
     espn: true,
+    espnStats: {}, // pid → { applied: { statId: points }, raw: { statId: value } }, for the points breakdown
   };
   const teams = d.teams || [];
   const ownerOf = (t) => (d.members || []).find((mm) => mm.id === t.owners?.[0] || mm.id === t.primaryOwner);
@@ -300,6 +301,7 @@ function espnLeagueData(d, cfg, week, period, dump, extraInfo) {
       if (!bench) starters.push(pid);
       roster.push({ pid, slot: ESPN_SLOTS[e.lineupSlotId] || (bench ? 'BN' : 'FLEX') });
       players_points[pid] = e.playerPoolEntry.appliedStatTotal ?? stat(0)?.appliedTotal ?? 0;
+      if (stat(0)) league.espnStats[pid] = { applied: stat(0).appliedStats || {}, raw: stat(0).stats || {} };
       projMap[pid] = stat(1)?.appliedTotal ?? 0;
     }
     roster.sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot)); // ESPN lists slots in no set order
@@ -500,7 +502,9 @@ async function loadAll(username, weekOverride) {
     ? { league: { league_id: `espn:${c.id}`, name: espnMetaCache[c.id]?.name || `ESPN league ${c.id}`, espn: true }, skip: err }
     : espnLeagueData(d, c, week, period, dump, extraInfo)));
 
-  return { state, week, user, model: buildModel([...leagueData, ...espnData], proj, dump, games, ranks, extraInfo) };
+  const model = buildModel([...leagueData, ...espnData], proj, dump, games, ranks, extraInfo);
+  model.weekStats = weekStats; // for the points breakdown (null if it didn't load)
+  return { state, week, user, model };
 }
 
 // Sleeper leagues: while a player's game is live, score him from this week's stats × the league's
@@ -657,7 +661,7 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
         if (!pid) return { pid, slot };
         const info = playerInfo(pid, proj, dump, extraInfo);
         const pj = s.projMap ? (s.projMap[pid] ?? 0) : leagueProj(proj[pid]?.stats, ld.league.scoring_settings);
-        return { pid, slot, info, rank: ranks?.map[pid] ?? null, game: games[info.team] || null, pts: s.m.players_points?.[pid] ?? 0, proj: pj, src: ptsSrc(ld, s.m, pid) };
+        return { pid, slot, info, rank: ranks?.map[pid] ?? null, game: games[info.team] || null, pts: s.m.players_points?.[pid] ?? 0, proj: pj, src: ptsSrc(ld, s.m, pid), lid: ld.league.league_id };
       });
     }
   }
@@ -899,7 +903,7 @@ function playerRow(pl, { showGame = false } = {}) {
   const box = ptsBox(g, pl.info, `Live fantasy points${srcNote(pl.legs.map((l) => l.src))}`);
   const chips = pl.legs.map((l) => legChip(l));
   const gameText = showGame ? gameLine(g, pl.info.team) : null;
-  return h('div', { class: 'pl' },
+  return h('div', { class: 'pl bd-open', ...breakdownHandlers(pl.pid, pl.legs.map((l) => l.ld.league.league_id)) },
     h('div', { class: 'pl-main' },
       h('div', { class: 'pl-name' },
         pl.info.name,
@@ -1113,7 +1117,7 @@ function rosterRow(r) {
   }
   const g = r.game;
   const box = ptsBox(g, r.info, `Fantasy points${srcNote([r.src])}`);
-  return h('div', { class: 'pl ro-row' },
+  return h('div', { class: 'pl ro-row bd-open', ...breakdownHandlers(r.pid, [r.lid]) },
     h('span', { class: 'ro-slot' }, r.slot),
     h('div', { class: 'pl-main' },
       h('div', { class: 'pl-name' },
@@ -1154,6 +1158,191 @@ function renderRoster() {
       section('Starters', starters),
       section('Bench', bench, `${fmt2(total(bench, 'pts'))} pts`),
       section('IR / Taxi', reserve)));
+  el.hidden = false;
+}
+
+// ---------- points breakdown ----------
+// Click a player: what his points came from in each league he's in (catches, yards, TDs…), scored
+// with that league's rules. Sleeper leagues use this week's stats; ESPN leagues use ESPN's own split.
+let breakdownOpen = null; // { pid, leagueIds } while a breakdown is showing
+
+const STAT_LABELS = {
+  pass_yd: 'Passing yards', pass_td: 'Passing TDs', pass_2pt: 'Passing 2-pt', pass_int: 'Interceptions thrown',
+  pass_int_td: 'Pick-sixes thrown', pass_cmp: 'Completions', pass_inc: 'Incompletions', pass_att: 'Pass attempts',
+  pass_cmp_40p: '40+ yd completions', pass_fd: 'Passing first downs', pass_sack: 'Times sacked',
+  pass_td_40p: '40+ yd passing TDs', pass_td_50p: '50+ yd passing TDs',
+  bonus_pass_yd_300: '300+ passing yards bonus', bonus_pass_yd_400: '400+ passing yards bonus',
+  rush_yd: 'Rushing yards', rush_td: 'Rushing TDs', rush_2pt: 'Rushing 2-pt', rush_att: 'Rush attempts',
+  rush_fd: 'Rushing first downs', rush_40p: '40+ yd rushes', rush_td_40p: '40+ yd rushing TDs', rush_td_50p: '50+ yd rushing TDs',
+  bonus_rush_yd_100: '100+ rushing yards bonus', bonus_rush_yd_200: '200+ rushing yards bonus',
+  rec: 'Receptions', rec_yd: 'Receiving yards', rec_td: 'Receiving TDs', rec_2pt: 'Receiving 2-pt', rec_tgt: 'Targets',
+  rec_fd: 'Receiving first downs', rec_0_4: '0–4 yd catches', rec_5_9: '5–9 yd catches', rec_10_19: '10–19 yd catches',
+  rec_20_29: '20–29 yd catches', rec_30_39: '30–39 yd catches', rec_40p: '40+ yd catches',
+  rec_td_40p: '40+ yd receiving TDs', rec_td_50p: '50+ yd receiving TDs',
+  bonus_rec_yd_100: '100+ receiving yards bonus', bonus_rec_yd_200: '200+ receiving yards bonus',
+  bonus_rec_te: 'TE reception bonus', bonus_rec_rb: 'RB reception bonus', bonus_rec_wr: 'WR reception bonus',
+  fum: 'Fumbles', fum_lost: 'Fumbles lost', fum_rec_td: 'Fumble recovery TDs',
+  kr_yd: 'Kick return yards', pr_yd: 'Punt return yards', st_td: 'Special teams TDs',
+  st_ff: 'Special teams forced fumbles', st_fum_rec: 'Special teams fumble recoveries',
+  fgm: 'Field goals made', fgm_yds: 'Field goal yards', fgm_0_19: 'FGs made (0–19 yd)', fgm_20_29: 'FGs made (20–29 yd)',
+  fgm_30_39: 'FGs made (30–39 yd)', fgm_40_49: 'FGs made (40–49 yd)', fgm_50_59: 'FGs made (50–59 yd)',
+  fgm_50p: 'FGs made (50+ yd)', fgm_60p: 'FGs made (60+ yd)', fgmiss: 'Missed FGs', fgmiss_0_19: 'Missed FGs (0–19 yd)',
+  fgmiss_20_29: 'Missed FGs (20–29 yd)', fgmiss_30_39: 'Missed FGs (30–39 yd)', fgmiss_40_49: 'Missed FGs (40–49 yd)',
+  fgmiss_50p: 'Missed FGs (50+ yd)', xpm: 'Extra points', xpmiss: 'Missed extra points',
+  sack: 'Sacks', int: 'Interceptions', fum_rec: 'Fumble recoveries', ff: 'Forced fumbles', def_td: 'Defensive TDs',
+  def_st_td: 'Special teams TDs', def_st_ff: 'Special teams forced fumbles', def_st_fum_rec: 'Special teams fumble recoveries',
+  safe: 'Safeties', blk_kick: 'Blocked kicks', blk_kick_ret_yd: 'Blocked kick return yards', def_2pt: 'Defensive 2-pt returns',
+  int_ret_yd: 'Interception return yards', fum_ret_yd: 'Fumble return yards', fg_ret_yd: 'Missed FG return yards',
+  def_kr_yd: 'Kick return yards', def_pr_yd: 'Punt return yards', def_3_and_out: 'Three-and-outs',
+  def_4_and_stop: '4th-down stops', def_pass_def: 'Passes defended', qb_hit: 'QB hits', tkl: 'Tackles',
+  tkl_solo: 'Solo tackles', tkl_ast: 'Assisted tackles', tkl_loss: 'Tackles for loss', sack_yd: 'Sack yards',
+};
+// ESPN stat ids → labels (D/ST tiers included). Anything missing shows as "ESPN stat N".
+const ESPN_STAT_LABELS = {
+  3: 'Passing yards', 4: 'Passing TDs', 19: 'Passing 2-pt', 20: 'Interceptions thrown',
+  24: 'Rushing yards', 25: 'Rushing TDs', 26: 'Rushing 2-pt',
+  42: 'Receiving yards', 43: 'Receiving TDs', 44: 'Receiving 2-pt', 53: 'Receptions',
+  63: 'Fumble recovery TDs', 72: 'Fumbles lost',
+  74: 'FGs made (50+ yd)', 77: 'FGs made (40–49 yd)', 80: 'FGs made (0–39 yd)', 85: 'Missed FGs',
+  86: 'Extra points', 88: 'Missed extra points', 198: 'FGs made (50–59 yd)', 201: 'FGs made (60+ yd)',
+  89: '0 points allowed', 90: '1–6 points allowed', 91: '7–13 points allowed', 92: '14–17 points allowed',
+  93: 'Blocked kick return TDs', 94: 'Defensive TDs', 95: 'Interceptions', 96: 'Fumble recoveries',
+  97: 'Blocked kicks', 98: 'Safeties', 99: 'Sacks', 101: 'Kick return TDs', 102: 'Punt return TDs',
+  103: 'Interception return TDs', 104: 'Fumble return TDs',
+  121: '18–21 points allowed', 122: '22–27 points allowed', 123: '28–34 points allowed',
+  124: '35–45 points allowed', 125: '46+ points allowed',
+  127: 'Under 100 yards allowed', 128: 'Under 100 yards allowed', 129: '100–199 yards allowed',
+  130: '200–299 yards allowed', 131: '300–349 yards allowed', 132: '350–399 yards allowed',
+  133: '400–449 yards allowed', 134: '450–499 yards allowed', 135: '500–549 yards allowed', 136: '550+ yards allowed',
+  206: '2-pt returns', 209: '1-pt safeties',
+};
+const ESPN_YARD_STATS = new Set([3, 24, 42]);
+const isEspnTier = (id) => (id >= 89 && id <= 92) || (id >= 121 && id <= 136); // points / yards allowed
+
+// "pts_allow_28_34" → "28–34 points allowed"; anything else unknown → "Pass cmp 40p"-style words.
+function statLabel(key) {
+  if (STAT_LABELS[key]) return STAT_LABELS[key];
+  const tier = key.match(/^(pts|yds)_allow_(\d+)(?:_(\d+)|p)$/);
+  if (tier) return `${tier[3] ? `${tier[2]}–${tier[3]}` : `${tier[2]}+`} ${tier[1] === 'pts' ? 'points' : 'yards'} allowed`;
+  const words = key.replace(/_/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+// Tiers and bonuses are yes/no (1), so they don't show a count.
+const isTierStat = (key) => /^(bonus_|pts_allow_|yds_allow_)/.test(key);
+
+// One league's lines for a player: [{ label, count, pts }], biggest points first. null = no stats to split.
+function breakdownLines(ld, pid, model) {
+  if (ld.league.espn) {
+    const s = ld.league.espnStats?.[pid];
+    if (!s) return null;
+    return Object.entries(s.applied)
+      .filter(([, pts]) => pts)
+      .map(([id, pts]) => ({
+        label: ESPN_STAT_LABELS[id] || `ESPN stat ${id}`,
+        count: isEspnTier(id) || s.raw[id] == null ? null : `${s.raw[id]}${ESPN_YARD_STATS.has(Number(id)) ? ' yd' : ''}`,
+        pts,
+      }))
+      .sort((a, b) => Math.abs(b.pts) - Math.abs(a.pts));
+  }
+  const stats = model.weekStats?.get(pid);
+  if (!stats) return null;
+  const scoring = ld.league.scoring_settings || {};
+  const lines = [];
+  for (const [k, v] of Object.entries(stats)) {
+    const per = scoring[k];
+    if (typeof v !== 'number' || typeof per !== 'number' || !(v * per)) continue;
+    let label = statLabel(k);
+    if (k.startsWith('pts_allow_') && stats.pts_allow != null) label += ` (${stats.pts_allow})`;
+    if (k.startsWith('yds_allow_') && stats.yds_allow != null) label += ` (${stats.yds_allow})`;
+    lines.push({ label, count: isTierStat(k) ? null : `${Math.round(v * 100) / 100}${k.endsWith('_yd') ? ' yd' : ''}`, pts: v * per });
+  }
+  return lines.sort((a, b) => Math.abs(b.pts) - Math.abs(a.pts));
+}
+
+function openBreakdown(pid, leagueIds) {
+  breakdownOpen = { pid, leagueIds };
+  renderBreakdown();
+}
+
+function closeBreakdown() {
+  breakdownOpen = null;
+  $('#breakdown').hidden = true;
+}
+
+// Click / Enter on a player row opens his breakdown.
+const breakdownHandlers = (pid, leagueIds) => {
+  const open = (e) => { e.preventDefault(); e.stopPropagation(); openBreakdown(pid, leagueIds); };
+  return {
+    role: 'button', tabindex: '0', title: 'Click for his points breakdown',
+    onclick: open,
+    onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') open(e); },
+  };
+};
+
+// Redrawn on every refresh while it's open, so live points keep moving.
+function renderBreakdown() {
+  const el = $('#breakdown');
+  const model = current?.model;
+  if (!breakdownOpen || !model) return closeBreakdown();
+  const { pid } = breakdownOpen;
+  const leagues = breakdownOpen.leagueIds.map((id) => model.leagues.find((x) => x.league.league_id === id)).filter(Boolean);
+  // Find him on either team's roster in each league: which side, slot and points.
+  let info = null, game = null;
+  const sections = leagues.map((ld) => {
+    for (const [side, s] of [['me', ld.me], ['opp', ld.opp]]) {
+      const r = s?.roster?.find((x) => x.pid === pid);
+      if (!r) continue;
+      info ||= r.info;
+      game ||= r.game;
+      const whose = side === 'me' ? 'Your' : `${teamLabel(ld, s)}’s`;
+      const where = BENCH_SLOTS.includes(r.slot) ? `${whose} ${r.slot === 'BN' ? 'bench' : r.slot}` : `${whose} starter`;
+      return { ld, where, pts: r.pts, src: r.src, mine: side === 'me' };
+    }
+    return null;
+  }).filter(Boolean);
+  if (!sections.length || !info) return closeBreakdown();
+
+  const started = game && game.state !== 'pre';
+  const body = sections.map(({ ld, where, pts, src, mine }) => {
+    const lines = breakdownLines(ld, pid, model);
+    const sum = lines ? Math.round(lines.reduce((t, l) => t + l.pts, 0) * 100) / 100 : null;
+    let content;
+    if (!lines) {
+      content = h('div', { class: 'bd-empty' }, !started ? 'His game hasn’t started yet.'
+        : !ld.league.espn && !model.weekStats ? 'Sleeper’s stats didn’t load — try again on the next refresh.'
+        : 'No stats for him yet.');
+    } else if (!lines.length) {
+      content = h('div', { class: 'bd-empty' }, started ? 'Nothing that scores in this league yet.' : 'His game hasn’t started yet.');
+    } else {
+      content = [
+        ...lines.map((l) => h('div', { class: 'bd-row' },
+          h('span', { class: 'bd-label' }, l.label, l.count != null ? h('span', { class: 'bd-count' }, ` ${l.count}`) : null),
+          h('span', { class: `bd-pts ${l.pts < 0 ? 'neg' : ''}` }, signed(Math.round(l.pts * 100) / 100)))),
+        // Sleeper's matchup number for a player whose game is final (or when stats run ahead) can differ briefly.
+        Math.abs(sum - pts) > 0.01
+          ? h('div', { class: 'bd-note' }, ld.league.espn
+            ? `ESPN shows ${fmt2(pts)} in total.`
+            : `Sleeper’s matchup score shows ${fmt2(pts)}; it usually catches up to the live stats within a few minutes.`)
+          : null,
+      ];
+    }
+    return h('div', { class: 'ro-sec', style: `--lc:${ld.color}` },
+      h('h4', { class: 'bd-head' },
+        h('span', { class: `chip ${mine ? 'for' : 'against'}`, style: `--lc:${ld.color}` }, leagueTag(ld.league)),
+        h('span', { class: 'bd-where' }, `${ld.league.name} · ${where}`),
+        h('span', { class: 'ro-note', title: `Fantasy points${srcNote([src])}` }, `${fmt2(pts)} pts`)),
+      content);
+  });
+
+  el.replaceChildren(
+    h('div', { class: 'ro-backdrop', onclick: closeBreakdown }),
+    h('div', { class: 'ro-panel bd-panel', role: 'dialog', 'aria-label': `${info.name} points breakdown`, style: `--lc:${sections[0].ld.color}` },
+      h('div', { class: 'ro-head' },
+        h('div', { class: 'ro-title' },
+          h('div', { class: 'ro-team' }, info.name, info.num != null && info.num !== '' ? h('span', { class: 'un' }, ` #${info.num}`) : null),
+          h('div', { class: 'ro-sub' }, [`${info.pos}${info.team ? ' · ' + info.team : ''}`, gameLine(game, info.team)].join(' · '))),
+        h('button', { type: 'button', class: 'ghost x', title: 'Close (Esc)', onclick: closeBreakdown }, '✕')),
+      body));
   el.hidden = false;
 }
 
@@ -1587,6 +1776,7 @@ function render() {
     setStatus('Couldn’t load the NFL schedule from ESPN — game times and live scores are missing for now.');
   }
   if (rosterOpen) renderRoster(); // keep an open roster's points live
+  if (breakdownOpen) renderBreakdown(); // and an open breakdown's
 }
 
 // Sleeper usernames are letters, numbers and underscores — strips "@", spaces, etc.
@@ -1854,7 +2044,12 @@ $('#brand').addEventListener('click', leaveSetup);
 $('#brand').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); leaveSetup(); } });
 $('#discardKeep').addEventListener('click', () => { $('#discardPrompt').hidden = true; });
 $('#discardLeave').addEventListener('click', hideSetup);
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && rosterOpen) closeRoster(); });
+// Esc closes the top panel first: a breakdown opened from a roster leaves the roster showing.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (breakdownOpen) closeBreakdown();
+  else if (rosterOpen) closeRoster();
+});
 $('#refresh').addEventListener('click', refresh);
 $('#week').addEventListener('change', (e) => {
   // Picking the current week means "follow along", so a popout left open moves on to next week by itself.
