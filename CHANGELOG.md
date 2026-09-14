@@ -4,13 +4,13 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
-## Unreleased
+## 1.0.11 — 2026-09-14
 
 ### Changed
-- **Roster panel:** the reserve section is titled by what's in it: **IR**, **Taxi**, or **IR / Taxi** when a team has both.
+- **Roster panel:** the reserve section is titled by what's in it: **IR**, **Taxi**, or **IR / Taxi** when a team has both. (#48)
 
 ### Fixed
-- The header no longer shows "null" after the update time when no games are live (e.g. "updated 10:56 AMnull").
+- The header no longer shows "null" after the update time when no games are live (e.g. "updated 10:56 AMnull"). (#49)
 
 ## 1.0.10 — 2026-09-13
 
