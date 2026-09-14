@@ -1746,7 +1746,7 @@ function render() {
   // so on a narrow popup a long username is cut short with … instead of LIVE disappearing.
   $('#sub').replaceChildren(
     h('span', { class: 'sub-text' }, `${user ? `@${user.display_name} · ` : ''}updated ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`),
-    anyLive ? h('span', { class: 'sub-live' }, '· LIVE') : null);
+    ...(anyLive ? [h('span', { class: 'sub-live' }, '· LIVE')] : [])); // replaceChildren would print a null as "null"
   // Keep only picks that have a matchup this week; picking every league is the same as no filter.
   const selectable = model.leagues.filter((ld) => ld.opp);
   const picked = selectable.filter((ld) => selectedLeagues.includes(ld.league.league_id));
