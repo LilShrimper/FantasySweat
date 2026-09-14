@@ -1819,10 +1819,10 @@ async function showVersion() {
 
 // ---------- store updates ----------
 // Chrome updates store installs by itself every few hours. This asks the Web Store now — when Fantasy
-// Sweat opens (at most every 3 hours) and whenever Settings opens — and offers to restart onto a newer
+// Sweat opens (at most every 30 minutes) and whenever Settings opens — and offers to restart onto a newer
 // version. Only store installs can be updated: Chrome adds update_url to their manifest, not unpacked ones.
 // A version still in Google's review isn't offered yet; the store keeps serving the last approved one.
-const UPDATE_CHECK_MS = 3 * 3600_000;
+const UPDATE_CHECK_MS = 30 * 60_000; // Chrome also rate-limits these itself ("throttled")
 const storeRuntime = () => (typeof chrome !== 'undefined' && chrome.runtime?.requestUpdateCheck
   && chrome.runtime.getManifest?.()?.update_url ? chrome.runtime : null);
 const isNewer = (a, b) => {
@@ -1995,6 +1995,6 @@ function markDevCopy() {
   document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('on', x.dataset.view === view));
   showVersion();
   markDevCopy();
-  checkForUpdate(); // at most every 3 hours; a newer version found before still shows
+  checkForUpdate(); // at most every 30 minutes; a newer version found before still shows
   refresh();
 })();
