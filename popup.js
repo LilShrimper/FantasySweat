@@ -1583,7 +1583,7 @@ function playItem(it, side) {
   return h('div', { class: 'lp' },
     it.players.map((x) => {
       const good = side === 'for' ? x.pts > 0 : x.pts < 0; // colored from your point of view
-      return h('div', { class: 'lp-row' },
+      return h('div', { class: 'lp-row bd-open', ...breakdownHandlers(x.pl.pid, x.legs.map((l) => l.leg.ld.league.league_id)) },
         h('span', {
           class: `lp-pts ${good ? 'good' : 'bad'}`,
           title: x.legs.map((l) => `${l.leg.ld.league.name}: ${signed(l.pts)}`).join('\n'),
