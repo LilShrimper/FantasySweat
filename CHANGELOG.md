@@ -4,10 +4,10 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
-## Unreleased
+## 1.0.10 — 2026-09-13
 
 ### Changed
-- **Live plays:** click a player on a play to open his points breakdown, same as the other tabs.
+- **Live plays:** click a player on a play to open his points breakdown, same as the other tabs. (#46)
 
 ## 1.0.9 — 2026-09-13
 
