@@ -213,9 +213,9 @@ body.full .leagues { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)
 }
 
 /* Points breakdown: click a player row. Sits above the roster panel when opened from it. */
-.pl.bd-open { cursor: pointer; border-radius: 5px; }
-.pl.bd-open:hover { background: var(--panel2); }
-.pl.bd-open:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.bd-open { cursor: pointer; border-radius: 5px; }
+.bd-open:hover { background: var(--panel2); }
+.bd-open:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 .breakdown { z-index: 30; padding-top: 40px; }
 .bd-panel { max-width: 380px; }
 .ro-sec .bd-head { display: flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0; font-size: 11.5px; }
