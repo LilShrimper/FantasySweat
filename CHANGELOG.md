@@ -7,7 +7,7 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 ## Unreleased
 
 ### New
-- **League tags as card titles:** a Settings option (Display) titles each league card with the tag you gave that league instead of its full name. Leagues without a tag keep their name, and hovering a tag shows the real one.
+- **League nicknames as card titles:** a Settings option (Display) titles each league card with the nickname you gave that league instead of its full name. Leagues without a nickname keep their name, and hovering a nickname shows the real one.
 
 ### Changed
 - **Update now** checks for a new version every 30 minutes instead of every 3 hours, so a release shows up much sooner. Opening Settings still checks right away.
