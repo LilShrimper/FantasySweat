@@ -707,6 +707,12 @@ const gameLine = (g, team) => {
   return `${home ? 'vs' : '@'} ${home ? g.away : g.home} · ${gameWhen(g)}`;
 };
 const leagueTag = (league) => nicknames[league.league_id] || initials(league.name);
+// A league card's title: its tag instead of the name when that Settings option is on and a tag is set.
+// Hovering a tag shows the league's real name.
+const cardName = (league) => {
+  const tag = tagTitles && nicknames[league.league_id];
+  return h('span', { class: 'lg-name', title: tag ? league.name : null }, tag || league.name);
+};
 // Team nicknames from Settings, keyed per league so they stick to a team all season.
 const teamNickKey = (ld, key) => `${ld.league.league_id}:${key}`;
 const teamLabel = (ld, s) => (s?.key != null && teamNicks[teamNickKey(ld, s.key)]) || s?.name || '';
@@ -720,7 +726,7 @@ const winColor = (p) => `hsl(${Math.round(p * 130)} 70% var(--wl))`;
 function leagueCard(ld) {
   if (ld.skip && !ld.opp) {
     return h('div', { class: 'lg skip', style: `--lc:${ld.color}` },
-      h('div', { class: 'lg-head' }, h('span', { class: 'lg-name' }, ld.league.name), h('span', null, ld.skip)));
+      h('div', { class: 'lg-head' }, cardName(ld.league), h('span', null, ld.skip)));
   }
   const me = ld.me, opp = ld.opp;
   const p = ld.winPct ?? 0.5;
@@ -770,7 +776,7 @@ function leagueCard(ld) {
     onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(e); } },
   },
     h('div', { class: 'lg-head' },
-      h('span', { class: 'lg-name' }, ld.league.name),
+      cardName(ld.league),
       h('span', { class: 'wl', style: `color:${color}` }, verdict)),
     h('div', { class: 'lg-score' },
       h('div', { class: 'side' },
@@ -1364,6 +1370,7 @@ let refreshTimer = null;
 let pickedWeek = null;     // week chosen in the dropdown; null = follow the NFL's current week
 let playerSort = 'points'; // By player order: 'points' or 'position' (remembered)
 let sortClose = false;     // Settings: league cards ordered by closest matchup (win chance nearest 50%)
+let tagTitles = false;     // Settings: league cards titled with the league's tag instead of its name
 
 // Re-run the cheer/boo math using only the picked leagues' matchups; drops games with nothing at stake there.
 // keepAll (for leagues hidden in Settings): keep every game, so the rest looks just like "all leagues".
@@ -1582,6 +1589,7 @@ async function showSetup() {
   $('#userHint').hidden = true;
   $('#cancelSetup').hidden = !current; // nothing to go back to on first run (ESPN-only users included)
   $('#sortClose').checked = sortClose;
+  $('#tagTitles').checked = tagTitles;
 
   // One row per league (once leagues have loaded): show/hide, its tag, and — folded away —
   // a nickname box for every team in it.
@@ -1753,6 +1761,8 @@ $('#setup').addEventListener('submit', async (e) => {
   for (const ld of current?.model.leagues || []) ld.color = leagueColors[ld.league.league_id] || ld.defaultColor;
   sortClose = $('#sortClose').checked;
   await store.set('sortClose', sortClose);
+  tagTitles = $('#tagTitles').checked;
+  await store.set('tagTitles', tagTitles);
   const userChanged = name !== cleanUsername(await store.get('username')); // none saved reads as ''
   await store.set('username', name);
   hideSetup();
@@ -1976,6 +1986,7 @@ function markDevCopy() {
   filter = (await store.get('filter')) || 'all';
   playerSort = (await store.get('playerSort')) === 'position' ? 'position' : 'points';
   sortClose = (await store.get('sortClose')) === true;
+  tagTitles = (await store.get('tagTitles')) === true;
   const savedLeagues = await store.get('leagues');
   selectedLeagues = Array.isArray(savedLeagues) ? savedLeagues : [];
   nicknames = (await store.get('nicknames')) || {};
