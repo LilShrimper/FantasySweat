@@ -44,13 +44,17 @@
     </div>
     <div id="espnHint" class="hint" hidden></div>
     <div id="nickSection" hidden>
-      <div class="setup-h">Leagues <span>— uncheck to hide one; the short tag shows on player chips (click it to change the color)</span></div>
+      <div class="setup-h">Leagues <span>— uncheck to hide one; the short nickname shows on player chips (click it to change the color)</span></div>
       <div id="nicks"></div>
     </div>
     <div class="setup-h">Display</div>
     <label class="check-row" for="sortClose">
       <input type="checkbox" id="sortClose">
       <span>Order league cards by closest matchup <span class="opt">(nearest 50/50 first)</span></span>
+    </label>
+    <label class="check-row" for="tagTitles">
+      <input type="checkbox" id="tagTitles">
+      <span>Title league cards with the league's nickname <span class="opt">(leagues without a nickname keep their name)</span></span>
     </label>
     <div class="row actions">
       <button type="button" id="cancelSetup" class="ghost" hidden>Cancel</button>
