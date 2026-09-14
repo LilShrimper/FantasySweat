@@ -4,10 +4,10 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
-## Unreleased
+## 1.0.9 — 2026-09-13
 
 ### New
-- **Points breakdown:** click any player (By game, By player, By NFL team, Bench or the roster panel) to see where his points came from, like receptions, receiving yards and TDs, or sacks and points allowed for a D/ST. There's one section per league he's in, scored with that league's rules, and it stays live while open. Esc or ✕ closes it.
+- **Points breakdown:** click any player (By game, By player, By NFL team, Bench or the roster panel) to see where his points came from, like receptions, receiving yards and TDs, or sacks and points allowed for a D/ST. There's one section per league he's in, scored with that league's rules, and it stays live while open. Esc or ✕ closes it. (#44)
 
 ## 1.0.8 — 2026-09-13
 
