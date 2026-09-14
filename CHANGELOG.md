@@ -9,6 +9,9 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 ### Changed
 - **Roster panel:** the reserve section is titled by what's in it: **IR**, **Taxi**, or **IR / Taxi** when a team has both.
 
+### Fixed
+- The header no longer shows "null" after the update time when no games are live (e.g. "updated 10:56 AMnull").
+
 ## 1.0.10 — 2026-09-13
 
 ### Changed
