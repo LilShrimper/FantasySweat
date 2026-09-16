@@ -177,6 +177,12 @@ body.full .leagues { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)
 .to-play-label { font-size: 9px; letter-spacing: .5px; text-transform: uppercase; white-space: nowrap; }
 .lg.skip { opacity: .6; border-left-color: var(--line); }
 .lg .tn { color: var(--text); font-weight: 600; }
+/* Team avatar before the name: no taller than the text, so the line keeps its height */
+.av {
+  display: inline-block; width: 1.1em; height: 1.1em; margin-right: .35em; border-radius: 50%;
+  vertical-align: -.2em; object-fit: cover; background: var(--panel2);
+}
+.av-letter { font-size: .75em; width: 1.45em; height: 1.45em; line-height: 1.45em; text-align: center; font-weight: 800; color: var(--muted); vertical-align: .05em; }
 .lg .un { color: var(--muted); font-weight: 400; }
 .rec { font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; margin-bottom: 1px; }
 .mid { display: flex; flex-direction: column; align-items: center; gap: 1px; }
