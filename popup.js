@@ -333,6 +333,14 @@ function wlt(competitor) {
   return t ? `${w}-${l}-${t}` : `${w}-${l}`;
 }
 
+// ESPN's NFL logos are 500px; ask ESPN's image resizer for a 40px copy since they're shown tiny.
+function teamLogo(url) {
+  const safe = safeAvatar(url);
+  if (!safe) return null;
+  const u = new URL(safe);
+  return u.pathname.startsWith('/i/teamlogos/') ? `https://a.espncdn.com/combiner/i?img=${encodeURIComponent(u.pathname)}&w=40&h=40` : safe;
+}
+
 async function getGames(season, week, seasonType) {
   const d = await getJSON(`${ESPN}?week=${week}&seasontype=${seasonType === 'post' ? 3 : 2}&dates=${season}`);
   const byTeam = {};
@@ -358,6 +366,8 @@ async function getGames(season, week, seasonType) {
       awayShort: away.team.shortDisplayName || away.team.abbreviation,
       homeRec: wlt(home),
       awayRec: wlt(away),
+      homeLogo: teamLogo(home.team.logo),
+      awayLogo: teamLogo(away.team.logo),
       period: e.status.period, // quarter (5+ = OT)
       clock: e.status.clock,   // seconds left in the quarter
       network: (comp.broadcasts || []).flatMap((b) => b.names || []).join('/') || comp.broadcast || '', // "CBS", "ESPN/ABC"
@@ -1025,6 +1035,14 @@ function tally({ cheer, boo, hedge }) {
 const emptyFiltered = (msg = 'No games match this filter right now.') => h('div', { class: 'status' }, msg);
 const noPlayersBadge = () => h('span', { class: 'verdict q' }, 'No players to watch');
 
+// A tiny NFL team logo before a team name, sized to the text. Dropped if it doesn't load.
+function nflLogo(src) {
+  if (!src) return null;
+  const img = h('img', { referrerpolicy: 'no-referrer', class: 'tlogo', alt: '', src });
+  img.addEventListener('error', () => img.remove(), { once: true });
+  return img;
+}
+
 function gameCard(g) {
   let title, status;
   if (g.none) {
@@ -1032,12 +1050,12 @@ function gameCard(g) {
     status = h('span', { class: 'gstat' }, '');
   } else {
     const showScore = g.state !== 'pre';
-    // e.g. "49ers (1-0) 14 @ Rams (0-1) 10"
-    const teamBit = (short, rec, score) => h('span', { class: 'tm' },
-      short, h('span', { class: 'trec' }, ` (${rec})`), showScore && h('span', { class: 'sc' }, ` ${score}`));
+    // e.g. "[logo] 49ers (1-0) 14 @ [logo] Rams (0-1) 10"
+    const teamBit = (logo, short, rec, score) => h('span', { class: 'tm' },
+      nflLogo(logo), short, h('span', { class: 'trec' }, ` (${rec})`), showScore && h('span', { class: 'sc' }, ` ${score}`));
     title = h('span', { class: 'matchup' },
-      teamBit(g.awayShort || g.away, g.awayRec, g.awayScore), ' @ ',
-      teamBit(g.homeShort || g.home, g.homeRec, g.homeScore));
+      teamBit(g.awayLogo, g.awayShort || g.away, g.awayRec, g.awayScore), ' @ ',
+      teamBit(g.homeLogo, g.homeShort || g.home, g.homeRec, g.homeScore));
     status = h('span', { class: `gstat ${g.state === 'in' ? 'live' : ''}` }, gameWhen(g));
   }
 
