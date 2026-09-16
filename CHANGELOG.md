@@ -4,15 +4,15 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
-## Unreleased
+## 1.0.13 — 2026-09-16
 
 ### New
-- **Team avatars:** league cards show a small avatar before your team's and your opponent's names: the team's Sleeper or ESPN logo, or its first letter when there isn't one. It's sized to the text, so the cards are no taller. Images only load from Sleeper's and ESPN's own servers; an ESPN logo linked from anywhere else shows the letter instead.
-- **NFL logos on game and team cards:** each team in a game card's header, and each card in **By NFL team** (bye weeks included), has its logo before its name. Sized to the text, so the cards are no taller.
+- **Team avatars:** league cards show a small avatar before your team's and your opponent's names: the team's Sleeper or ESPN logo, or its first letter when there isn't one. It's sized to the text, so the cards are no taller. Images only load from Sleeper's and ESPN's own servers; an ESPN logo linked from anywhere else shows the letter instead. (#55)
+- **NFL logos on game and team cards:** each team in a game card's header, and each card in **By NFL team** (bye weeks included), has its logo before its name. Sized to the text, so the cards are no taller. (#56)
 
 ### Changed
-- **League cards:** the verdict in the top right shows by how much, e.g. **Projected win (+17.9)** or **Projected loss (−5.6)** from the projected totals, and **Won (+12.4)** / **Lost (−3.1)** from the final scores.
-- **Still to play** on league cards shows up once the week's first game kicks off (usually Thursday night). Before that, every starter is still to play, so the line was just repeating the lineup.
+- **League cards:** the verdict in the top right shows by how much, e.g. **Projected win (+17.9)** or **Projected loss (−5.6)** from the projected totals, and **Won (+12.4)** / **Lost (−3.1)** from the final scores. (#53)
+- **Still to play** on league cards shows up once the week's first game kicks off (usually Thursday night). Before that, every starter is still to play, so the line was just repeating the lineup. (#54)
 
 ## 1.0.12 — 2026-09-16
 
