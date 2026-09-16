@@ -313,6 +313,7 @@ function espnLeagueData(d, cfg, week, period, dump, extraInfo) {
       name: espnTeamName(t),
       user: owner?.displayName || '',
       custom: !!owner?.displayName,
+      avatar: safeAvatar(t.logo),
       record: `${r.wins || 0}-${r.losses || 0}${r.ties ? `-${r.ties}` : ''}`,
       place: anyPlayed ? ranked.findIndex((x) => x.id === t.id) + 1 : null,
       of: teams.length,
@@ -371,6 +372,17 @@ async function getGames(season, week, seasonType) {
 
 const teamName = (u) => u?.metadata?.team_name || u?.display_name || 'Unknown team';
 
+// Team avatars are only loaded from Sleeper's and ESPN's own image hosts. ESPN lets a custom logo be
+// any web address, and fetching that would tell an unknown site someone opened the extension; those
+// teams get a letter badge instead.
+const AVATAR_HOSTS = /(^|\.)(sleepercdn\.com|espncdn\.com|fantasy\.espn\.com)$/;
+function safeAvatar(url) {
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && AVATAR_HOSTS.test(u.hostname) ? u.href : null;
+  } catch { return null; }
+}
+
 async function loadLeague(league, uid, week) {
   const base = `${SLEEPER}/league/${league.league_id}`;
   const [rosters, users, matchups] = await Promise.all([
@@ -427,6 +439,8 @@ async function loadLeague(league, uid, week) {
       name: teamName(u),
       user: u?.display_name || '',
       custom: !!u?.metadata?.team_name, // has a team name that isn't just the username
+      // The team's own avatar if it has one, else the owner's Sleeper avatar.
+      avatar: safeAvatar(u?.metadata?.avatar) || (u?.avatar ? `https://sleepercdn.com/avatars/thumbs/${encodeURIComponent(u.avatar)}` : null),
       record: `${s.w}-${s.l}${s.t ? `-${s.t}` : ''}`,
       place: roster && anyPlayed ? ranked.findIndex((r) => r.roster_id === roster.roster_id) + 1 : null,
       of: rosters.length,
@@ -787,6 +801,16 @@ const ordinal = (n) => {
 // Red (0%) → yellow → green (100%); lightness comes from the theme so it reads in light and dark.
 const winColor = (p) => `hsl(${Math.round(p * 130)} 70% var(--wl))`;
 
+// A team's small avatar before its name on a league card: its image, or its first letter when there's
+// no usable image (or it fails to load). Sized to the text so the line doesn't get taller.
+function avatar(s, label) {
+  const letter = () => h('span', { class: 'av av-letter', 'aria-hidden': 'true' }, (label.match(/\p{L}|\p{N}/u)?.[0] || '?').toUpperCase());
+  if (!s.avatar) return letter();
+  const img = h('img', { referrerpolicy: 'no-referrer', class: 'av', alt: '', src: s.avatar });
+  img.addEventListener('error', () => img.replaceWith(letter()), { once: true });
+  return img;
+}
+
 function leagueCard(ld) {
   if (ld.skip && !ld.opp) {
     return h('div', { class: 'lg skip', style: `--lc:${ld.color}` },
@@ -813,7 +837,7 @@ function leagueCard(ld) {
       title: `${nick ? `${label} · ${full}` : full} — click for the roster`,
       onclick: open,
       onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') open(e); },
-    }, label, !nick && s.custom && s.user ? h('span', { class: 'un' }, ` (${s.user})`) : null);
+    }, avatar(s, label), label, !nick && s.custom && s.user ? h('span', { class: 'un' }, ` (${s.user})`) : null);
   };
   const standing = (s) => h('div', { class: 'rec' }, s.record, s.place ? ` · ${ordinal(s.place)} of ${s.of}` : '');
   const id = ld.league.league_id;
