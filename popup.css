@@ -100,8 +100,14 @@ button, select, input { font: inherit; color: inherit; }
 /* Jersey number, team records */
 .num { color: var(--muted); font-weight: 500; font-size: 11px; }
 .tm { white-space: nowrap; }
-/* NFL logo before a team name on game cards: no taller than the text, so the header keeps its height */
-.tlogo { display: inline-block; width: 1.15em; height: 1.15em; margin-right: .25em; vertical-align: -.2em; object-fit: contain; }
+/* NFL logo before a team name on game and team cards: no taller than the text, so the header keeps its
+   height. A faint light disc and ring behind it keeps dark logos (Rams navy, Panthers black) visible. */
+.tlogo {
+  display: inline-block; width: 1.15em; height: 1.15em; margin-right: .3em; vertical-align: -.2em; object-fit: contain;
+  padding: .06em; border-radius: 50%;
+  background: color-mix(in srgb, var(--text) 9%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 16%, transparent);
+}
 .trec { color: var(--muted); font-weight: 500; font-size: 11px; }
 .setup-h { margin: 14px 0 6px; font-weight: 700; font-size: 12px; }
 .setup-h span { font-weight: 400; color: var(--muted); }

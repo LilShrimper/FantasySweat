@@ -340,6 +340,10 @@ function teamLogo(url) {
   const u = new URL(safe);
   return u.pathname.startsWith('/i/teamlogos/') ? `https://a.espncdn.com/combiner/i?img=${encodeURIComponent(u.pathname)}&w=40&h=40` : safe;
 }
+// A team's logo when there's no game to take it from (a bye week): ESPN's logo path by abbreviation.
+const logoByAbbr = (team) => (TEAM_NAMES[team]
+  ? teamLogo(`https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/${({ WAS: 'wsh' })[team] || team.toLowerCase()}.png`)
+  : null);
 
 async function getGames(season, week, seasonType) {
   const d = await getJSON(`${ESPN}?week=${week}&seasontype=${seasonType === 'post' ? 3 : 2}&dates=${season}`);
@@ -1092,7 +1096,7 @@ function teamCard(t) {
   return h('div', { class: `game ${g?.state || ''} ${hasPlayers ? '' : 'quiet'}` },
     h('div', { class: 'g-head' },
       h('div', null,
-        h('span', { class: 'matchup' }, t.team),
+        h('span', { class: 'matchup' }, nflLogo(g ? (isHome ? g.homeLogo : g.awayLogo) : logoByAbbr(t.team)), t.team),
         fullName && h('span', { class: 'fullname' }, ` ${fullName}${g ? ` (${isHome ? g.homeRec : g.awayRec})` : ''}`),
         h('div', null, h('span', { class: `gstat ${g?.state === 'in' ? 'live' : ''}` }, line))),
       hasPlayers
