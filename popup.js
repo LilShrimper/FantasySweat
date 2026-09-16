@@ -891,10 +891,13 @@ function stillToPlay(side) {
     .join(', ');
 }
 
-// Under the win bar: each side's starters still to play. Players drop off as their games kick off,
-// and the line goes once nobody's left on either side.
+// Under the win bar: each side's starters still to play, from the week's first kickoff (usually
+// Thursday) on — before that it's the whole lineup. Players drop off as their games kick off, and the
+// line goes once nobody's left on either side.
 function toPlayLine(ld) {
-  if (!current?.model.games.some((g) => !g.none)) return null; // no schedule loaded: can't tell who has played
+  const games = (current?.model.games || []).filter((g) => !g.none);
+  if (!games.length) return null; // no schedule loaded: can't tell who has played
+  if (!games.some((g) => g.state !== 'pre')) return null; // the week hasn't kicked off yet
   const mine = stillToPlay(ld.me), theirs = stillToPlay(ld.opp);
   if (!mine && !theirs) return null;
   return h('div', { class: 'to-play', title: 'Starters whose games haven’t kicked off yet' },

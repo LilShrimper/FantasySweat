@@ -4,6 +4,11 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### Changed
+- **Still to play** on league cards shows up once the week's first game kicks off (usually Thursday night). Before that, every starter is still to play, so the line was just repeating the lineup.
+
 ## 1.0.12 — 2026-09-16
 
 ### New
