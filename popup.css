@@ -173,6 +173,7 @@ body.full .leagues { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)
 /* Under the win bar: starters still to play, by position — yours on the left, theirs on the right */
 .to-play { display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline; gap: 8px; margin-top: 4px; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .to-play .r { text-align: right; }
+.bye-warn { margin-top: 4px; font-size: 11px; font-weight: 700; color: var(--hedge); }
 .to-play-label { font-size: 9px; letter-spacing: .5px; text-transform: uppercase; white-space: nowrap; }
 .lg.skip { opacity: .6; border-left-color: var(--line); }
 .lg .tn { color: var(--text); font-weight: 600; }

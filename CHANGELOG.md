@@ -4,6 +4,11 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### New
+- **Bye week reminder:** a league card warns when any of your starters is on bye that week, e.g. "⚠ 2 starters on bye: J. Williams (WR), W. Reichard (K)", so you can swap them out before kickoff. It goes away once the matchup is final.
+
 ## 1.0.11 — 2026-09-14
 
 ### Changed

@@ -855,7 +855,25 @@ function leagueCard(ld) {
         h('span', { class: 'pj' }, `proj ${fmt2(opp.proj)}`), ' ',
         h('span', { class: 'pts', style: `color:${winColor(1 - p)}`, title: totalNote(ld, opp) }, fmtPts(opp.m.points)))), // their side of the odds
     h('div', { class: 'bar', title: `Win chance ${Math.round(p * 100)}%` }, h('i', { style: `width:${(p * 100).toFixed(1)}%` })),
-    toPlayLine(ld));
+    toPlayLine(ld),
+    byeLine(ld));
+}
+
+// Your starters whose NFL team has no game this week: they'll score 0, so remind you to swap them.
+// Needs the week's schedule (no schedule → can't tell a bye from missing data); players with no NFL
+// team (free agents) aren't byes. Gone once the matchup is final.
+function byeStarters(side) {
+  if (!current?.model.games.some((g) => !g.none)) return [];
+  return (side?.roster || []).filter((r) => r.pid && !BENCH_SLOTS.includes(r.slot) && r.info?.team && !r.game);
+}
+
+function byeLine(ld) {
+  if (ld.final) return null;
+  const byes = byeStarters(ld.me);
+  if (!byes.length) return null;
+  const names = byes.map((r) => `${r.info.name} (${r.info.pos === 'DEF' ? 'D/ST' : r.info.pos})`).join(', ');
+  return h('div', { class: 'bye-warn', title: `On bye this week, so ${byes.length === 1 ? 'he' : 'they'} won’t score. Swap in a bench player on ${ld.league.espn ? 'ESPN' : 'Sleeper'}.` },
+    `⚠ ${byes.length === 1 ? 'Starter' : `${byes.length} starters`} on bye: ${names}`);
 }
 
 // "2 RB, 1 WR, 1 K": a team's starters whose games haven't kicked off yet, counted by position
