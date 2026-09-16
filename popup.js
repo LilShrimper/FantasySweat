@@ -798,6 +798,9 @@ function leagueCard(ld) {
   const verdict = ld.final
     ? (me.m.points > opp.m.points ? 'Won' : me.m.points < opp.m.points ? 'Lost' : 'Tied')
     : Math.round(p * 100) === 50 ? 'Toss-up' : p > 0.5 ? 'Projected win' : 'Projected loss';
+  // By how much: projected totals until the matchup is final, then the actual scores. "(+17.9)"
+  const diff = ld.final ? me.m.points - opp.m.points : me.proj - opp.proj;
+  const margin = Math.abs(diff) < 0.05 ? '' : ` (${diff > 0 ? '+' : '−'}${fmt1(Math.abs(diff))})`;
   // A team nickname replaces the name (and username); hovering still shows the real one.
   // Clicking the name opens that team's roster instead of filtering to the league.
   const who = (s, side) => {
@@ -841,7 +844,10 @@ function leagueCard(ld) {
   },
     h('div', { class: 'lg-head' },
       cardName(ld.league),
-      h('span', { class: 'wl', style: `color:${color}` }, verdict)),
+      h('span', {
+        class: 'wl', style: `color:${color}`,
+        title: margin ? `${ld.final ? 'Final' : 'Projected'} margin: ${fmt2(ld.final ? me.m.points : me.proj)} vs ${fmt2(ld.final ? opp.m.points : opp.proj)}` : null,
+      }, verdict + margin)),
     h('div', { class: 'lg-score' },
       h('div', { class: 'side' },
         who(me, 'me'), standing(me),
