@@ -8,6 +8,7 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 
 ### New
 - **Team avatars:** league cards show a small avatar before your team's and your opponent's names: the team's Sleeper or ESPN logo, or its first letter when there isn't one. It's sized to the text, so the cards are no taller. Images only load from Sleeper's and ESPN's own servers; an ESPN logo linked from anywhere else shows the letter instead.
+- **NFL logos on game and team cards:** each team in a game card's header, and each card in **By NFL team** (bye weeks included), has its logo before its name. Sized to the text, so the cards are no taller.
 
 ### Changed
 - **League cards:** the verdict in the top right shows by how much, e.g. **Projected win (+17.9)** or **Projected loss (−5.6)** from the projected totals, and **Won (+12.4)** / **Lost (−3.1)** from the final scores.
