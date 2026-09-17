@@ -14,6 +14,7 @@
   --live: #ff3b4e;
   --accent: #6c8cff;
   --wl: 58%; /* lightness for the red→green win-chance color */
+  --winner: #ffffff; /* the winning team on a final game card — brighter than the body text */
   color-scheme: dark;
 }
 @media (prefers-color-scheme: light) {
@@ -24,6 +25,7 @@
     --boo: #d93446; --boo-bg: rgba(217, 52, 70, .09);
     --hedge: #b77b00; --hedge-bg: rgba(183, 123, 0, .10);
     --wl: 38%;
+    --winner: #000000; /* light theme: darker than the body text, for the same contrast */
     color-scheme: light;
   }
 }
@@ -101,8 +103,8 @@ button, select, input { font: inherit; color: inherit; }
 .num { color: var(--muted); font-weight: 500; font-size: 11px; }
 .tm { white-space: nowrap; }
 /* Final games: the winner's name and score stand out, the loser's is grayed out */
-.tm.won { color: var(--text); }
-.tm.lost { color: var(--muted); }
+.tm.won { color: var(--winner); font-weight: 800; }
+.tm.lost { color: var(--muted); font-weight: 600; }
 /* NFL logo before a team name on game and team cards: no taller than the text, so the header keeps its height */
 .tlogo { display: inline-block; width: 1.15em; height: 1.15em; margin-right: .25em; vertical-align: -.2em; object-fit: contain; }
 .trec { color: var(--muted); font-weight: 500; font-size: 11px; }
