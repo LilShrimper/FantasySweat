@@ -1060,12 +1060,15 @@ function gameCard(g) {
     status = h('span', { class: 'gstat' }, '');
   } else {
     const showScore = g.state !== 'pre';
+    // Once final, the winner's name and score are green and the loser's red (a tie leaves both plain).
+    const outcome = (mine, theirs) => (g.state !== 'post' || Number(mine) === Number(theirs) ? ''
+      : Number(mine) > Number(theirs) ? ' won' : ' lost');
     // e.g. "[logo] 49ers (1-0) 14 @ [logo] Rams (0-1) 10"
-    const teamBit = (logo, short, rec, score) => h('span', { class: 'tm' },
+    const teamBit = (logo, short, rec, score, cls) => h('span', { class: `tm${cls}` },
       nflLogo(logo), short, h('span', { class: 'trec' }, ` (${rec})`), showScore && h('span', { class: 'sc' }, ` ${score}`));
     title = h('span', { class: 'matchup' },
-      teamBit(g.awayLogo, g.awayShort || g.away, g.awayRec, g.awayScore), ' @ ',
-      teamBit(g.homeLogo, g.homeShort || g.home, g.homeRec, g.homeScore));
+      teamBit(g.awayLogo, g.awayShort || g.away, g.awayRec, g.awayScore, outcome(g.awayScore, g.homeScore)), ' @ ',
+      teamBit(g.homeLogo, g.homeShort || g.home, g.homeRec, g.homeScore, outcome(g.homeScore, g.awayScore)));
     status = h('span', { class: `gstat ${g.state === 'in' ? 'live' : ''}` }, gameWhen(g));
   }
 

@@ -7,6 +7,7 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 ## Unreleased
 
 ### Changed
+- **Final games:** on a game card, the winning team's name and score are green and the losing team's red. A tie leaves both plain.
 - **Kickoff times for future weeks** include the date, e.g. "Thu (9/24) 8:15 PM · Prime Video", on game cards, By NFL team and in the time filter. Games within the next 6 days still show just the day.
 
 ## 1.0.13 — 2026-09-16
