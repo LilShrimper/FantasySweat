@@ -4,6 +4,11 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### Changed
+- **Kickoff times for future weeks** include the date, e.g. "Thu (9/24) 8:15 PM · Prime Video", on game cards, By NFL team and in the time filter. Games within the next 6 days still show just the day.
+
 ## 1.0.13 — 2026-09-16
 
 ### New
