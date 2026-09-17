@@ -769,7 +769,13 @@ const initials = (name) => {
   const words = name.replace(/[^\p{L}\p{N}\s&]/gu, '').split(/\s+/).filter(Boolean);
   return (words.length > 1 ? words.map((w) => w[0]).join('') : words[0] || '?').slice(0, 3).toUpperCase();
 };
-const kickoff = (d) => d.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+// A kickoff more than 6 days out (a future week) gets its date, since the weekday alone is ambiguous.
+const DAY_MS = 24 * 3600_000;
+const farOff = (d) => d - Date.now() > 6 * DAY_MS;
+const dateBit = (d) => `${d.getMonth() + 1}/${d.getDate()}`;
+const dayName = (d) => d.toLocaleDateString([], { weekday: 'short' }) + (farOff(d) ? ` (${dateBit(d)})` : '');
+// "Thu 8:15 PM" this week, "Thu (9/24) 8:15 PM" for a future week
+const kickoff = (d) => `${dayName(d)} ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
 // "Sun 1:00 PM · CBS" before kickoff, "Q3 5:12 · CBS" while live; finals drop the network.
 const gameWhen = (g) => {
   const t = g.state === 'pre' ? kickoff(g.date) : g.detail;
@@ -1730,7 +1736,7 @@ function scopeToLeague(model, leagueIds, { keepAll = false } = {}) {
 // Kickoffs on the same day within 45 min of each other are one window (e.g. Sun 4:05 / 4:25 PM).
 function timeWindows(games) {
   const sorted = games.filter((g) => !g.none).sort((a, b) => a.date - b.date);
-  const day = (d) => d.toLocaleDateString([], { weekday: 'short' });
+  const day = (d) => d.toLocaleDateString([], { weekday: 'short' }); // grouping only — no date
   const time = (d) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const wins = [];
   for (const g of sorted) {
@@ -1744,7 +1750,7 @@ function timeWindows(games) {
   }
   return wins.map((w) => ({
     key: `w${+w.startDate}`,
-    label: `${day(w.startDate)} ${[...w.times].join(' / ')}`,
+    label: `${dayName(w.startDate)} ${[...w.times].join(' / ')}`,
     start: +w.startDate,
     end: +w.endDate,
   }));
