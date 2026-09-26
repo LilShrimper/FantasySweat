@@ -304,6 +304,16 @@ function espnLeagueData(d, cfg, week, period, dump, extraInfo) {
       if (stat(0)) league.espnStats[pid] = { applied: stat(0).appliedStats || {}, raw: stat(0).stats || {} };
       projMap[pid] = stat(1)?.appliedTotal ?? 0;
     }
+    // ESPN only lists spots that have a player, so add a placeholder for each empty starting slot
+    // (Sleeper's lineup already carries them). That's what the empty-spot warning counts.
+    const used = {};
+    for (const r of roster) used[r.slot] = (used[r.slot] || 0) + 1;
+    for (const [id, n] of Object.entries(d.settings?.rosterSettings?.lineupSlotCounts || {})) {
+      if (!n || ESPN_BENCH_SLOTS.has(Number(id))) continue;
+      const slot = ESPN_SLOTS[id] || 'FLEX';
+      for (let i = used[slot] || 0; i < n; i++) roster.push({ pid: null, slot });
+      used[slot] = Math.max(used[slot] || 0, n);
+    }
     roster.sort((a, b) => SLOT_ORDER.indexOf(a.slot) - SLOT_ORDER.indexOf(b.slot)); // ESPN lists slots in no set order
     return {
       m: { starters, players_points, points: s.totalPointsLive ?? s.totalPoints ?? 0 },
@@ -906,7 +916,18 @@ function leagueCard(ld) {
         h('span', { class: 'pts', style: `color:${winColor(1 - p)}`, title: totalNote(ld, opp) }, fmtPts(opp.m.points)))), // their side of the odds
     h('div', { class: 'bar', title: `Win chance ${Math.round(p * 100)}%` }, h('i', { style: `width:${(p * 100).toFixed(1)}%` })),
     toPlayLine(ld),
+    emptyLine(ld),
     byeLine(ld));
+}
+
+// A starting spot with nobody in it scores nothing, so say which slots are empty.
+function emptyLine(ld) {
+  if (ld.final) return null;
+  const empty = (ld.me?.roster || []).filter((r) => !r.pid && !BENCH_SLOTS.includes(r.slot));
+  if (!empty.length) return null;
+  const slots = empty.map((r) => r.slot).sort((a, b) => SLOT_ORDER.indexOf(a) - SLOT_ORDER.indexOf(b)).join(', ');
+  return h('div', { class: 'bye-warn', title: `An empty spot scores nothing. Start someone on ${ld.league.espn ? 'ESPN' : 'Sleeper'}.` },
+    `⚠ ${empty.length === 1 ? 'Empty starting spot' : `${empty.length} empty starting spots`}: ${slots}`);
 }
 
 // Your starters whose NFL team has no game this week: they'll score 0, so remind you to swap them.

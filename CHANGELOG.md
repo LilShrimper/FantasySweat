@@ -4,6 +4,11 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### New
+- **Empty spot warning:** a league card warns when one of your starting spots has nobody in it, e.g. "⚠ Empty starting spot: FLEX", next to the bye week reminder. ESPN leagues now show empty spots in the roster panel too.
+
 ## 1.0.14 — 2026-09-17
 
 ### Changed
