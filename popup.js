@@ -1777,10 +1777,11 @@ function lookSummary(prev, now) {
 // counted, and all of them are spelled out in the hover text. Two fit a popup; the full tab holds more.
 const SINCE_SHOWN = 2;
 function sinceParts(summary, tagFor, max = SINCE_SHOWN) {
-  const shown = summary.leagues.slice(0, max).map((l) => `${tagFor(l.id)} ${signed(l.me)} / ${signed(l.opp)}`);
-  const rest = summary.leagues.length - shown.length;
-  return rest > 0 ? [...shown, `+${rest} more`] : shown;
+  const rows = summary.leagues.slice(0, max).map((l) => ({ tag: tagFor(l.id), me: l.me, opp: l.opp }));
+  return { rows, more: summary.leagues.length - rows.length };
 }
+// Colored the way the rest of the app is: points you gained are green, points against you are red.
+const sinceClass = (n, forYou) => (!n ? '' : (n > 0) === forYou ? 'good' : 'bad');
 
 async function trackLastLook(data) {
   // A window behind another one, or a full tab in the background, keeps refreshing but nobody's reading
@@ -1817,10 +1818,18 @@ function showSince() {
   const detail = ['Your change / your opponent’s, per league:', ...s.leagues
     .map((l) => `${leagueOf(l.id)?.league.name || 'League'}: you ${signed(l.me)}, opponent ${signed(l.opp)} · win ${pct(l.wasWin)} → ${pct(l.win)}`)].join('\n');
   // The popup is narrow, so it names fewer leagues than the full tab; the hover has them all.
-  const parts = sinceParts(s, tagFor, MODE === 'popup' ? SINCE_SHOWN : SINCE_SHOWN + 2);
+  const { rows, more } = sinceParts(s, tagFor, MODE === 'popup' ? SINCE_SHOWN : SINCE_SHOWN + 2);
+  const cells = rows.flatMap((r, i) => [
+    i ? h('span', { class: 'since-dot' }, ' · ') : null,
+    h('span', { class: 'since-lg' }, `${r.tag} `),
+    h('span', { class: sinceClass(r.me, true) }, signed(r.me)),
+    ' / ',
+    h('span', { class: sinceClass(r.opp, false) }, signed(r.opp)),
+  ].filter(Boolean));
   bar.replaceChildren(
     h('span', { class: 'since-text', title: detail },
-      `Since your last look (${agoText(s.away)}): ${parts.join(' · ')}`),
+      `Since your last look (${agoText(s.away)}): `, ...cells,
+      more > 0 ? h('span', { class: 'since-more' }, ` · +${more} more`) : null),
     h('button', {
       type: 'button', class: 'ghost x', title: 'Hide until next time',
       onclick: () => { sinceSummary = null; showSince(); },

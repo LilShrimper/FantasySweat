@@ -19,7 +19,7 @@ const NAMES = [
   'leagueProj', 'scorePlay', 'slimPlay', 'downSpot', 'safeAvatar', 'teamLogo', 'isNewer', 'initials',
   'sleeperWinProb', 'secondsLeft', 'statLabel', 'fmt2', 'fmtPts', 'signed', 'liveScores', 'emptyLine',
   'byeLine', 'byeStarters', 'stillToPlay', 'playerInfo', 'cardName', 'leagueTag',
-  'lookSummary', 'lookSnapshot', 'agoText', 'sinceParts',
+  'lookSummary', 'lookSnapshot', 'agoText', 'sinceParts', 'sinceClass',
 ];
 const EXPORTS = `
 globalThis.__api = {

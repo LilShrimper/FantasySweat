@@ -162,13 +162,23 @@ test('the bar names each league rather than adding them together', () => {
     { id: 'L1', me: 12.4, opp: 3.1 }, { id: 'L2', me: 6.2, opp: 6.1 },
     { id: 'L3', me: -2, opp: 4 }, { id: 'L4', me: 0.5, opp: 0 },
   ].slice(0, n) });
-  const parts = (n, max) => [...api.sinceParts(summary(n), tagFor, max)];
-  assert.deepEqual(parts(1), ['LS +12.4 / +3.1']);
-  assert.deepEqual(parts(2), ['LS +12.4 / +3.1', 'IJF +6.2 / +6.1']);
+  const parts = (n, max) => { const p = api.sinceParts(summary(n), tagFor, max); return { rows: [...p.rows].map((r) => ({ ...r })), more: p.more }; };
+  assert.deepEqual(parts(1), { rows: [{ tag: 'LS', me: 12.4, opp: 3.1 }], more: 0 });
+  assert.deepEqual(parts(2).rows.map((r) => r.tag), ['LS', 'IJF']);
   // Beyond what fits, the rest are counted — the hover still lists them all.
-  assert.deepEqual(parts(4), ['LS +12.4 / +3.1', 'IJF +6.2 / +6.1', '+2 more']);
+  assert.equal(parts(4).more, 2);
   // A wider window (the full tab) names more of them.
-  assert.equal(parts(4, 4).length, 4);
+  assert.equal(parts(4, 4).rows.length, 4);
+  assert.equal(parts(4, 4).more, 0);
+});
+
+test('gains for you are green, gains against you are red', () => {
+  assert.equal(api.sinceClass(12.4, true), 'good');   // you scored
+  assert.equal(api.sinceClass(-2, true), 'bad');      // a correction took points off you
+  assert.equal(api.sinceClass(9.4, false), 'bad');    // your opponent scored
+  assert.equal(api.sinceClass(-1.5, false), 'good');
+  assert.equal(api.sinceClass(0, true), '');          // no change, no color
+  assert.equal(api.sinceClass(0, false), '');
 });
 
 test('how long you were away reads plainly', () => {
