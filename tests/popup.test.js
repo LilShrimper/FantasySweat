@@ -1,0 +1,204 @@
+// Checks on the logic behind the extension: scoring a play, lineup warnings, formatting and the
+// image allow-list. Run with `npm test` (or `node --test tests/`); nothing here ships.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { loadPopup } from './load-popup.js';
+
+const api = loadPopup();
+
+// A league that scores the way most do, for the play tests below.
+const scoring = { rec: 1, rec_yd: 0.1, rec_td: 6, sack: 1, fum_rec: 2, ff: 1, int: 2, qb_hit: 0, tkl: 0 };
+const league = (name, id) => ({ league_id: id, name, scoring_settings: scoring });
+// What the app calls an "ld": a league plus your side of its matchup.
+const ldOf = (name, id) => ({ league: league(name, id), color: '#6c8cff' });
+const player = (pid, pos, team, legs) => ({ pid, info: { name: pid, pos, team }, legs });
+const myLeg = (ld) => ({ ld, side: 1, pts: 0, proj: 0 });
+const theirLeg = (ld) => ({ ld, side: -1, pts: 0, proj: 0 });
+
+test('leagueProj scores stats with a league\'s own settings', () => {
+  assert.equal(api.leagueProj({ rec: 5, rec_yd: 80, rec_td: 1 }, scoring), 5 + 8 + 6);
+  assert.equal(api.leagueProj({ rec_yd: 50, not_scored_here: 99 }, scoring), 5);
+  assert.equal(api.leagueProj(null, scoring), 0);
+});
+
+test('scorePlay counts a D/ST play once, not once per feed row', () => {
+  // Sleeper describes a defensive play twice: a row for the defense (sack) and idp_ rows for the
+  // defenders who made it (fumble recovery). Scoring them separately used to double the league tag
+  // and show only the larger half. Real play: "FUMBLE! Drake Maye sacked, fumble recovered by JAC".
+  const ld = ldOf('Lil\' Shrimpers', 'L1');
+  const jax = player('JAX', 'DEF', 'JAX', [myLeg(ld)]);
+  const play = {
+    stats: [
+      { pid: '11564', team: 'NE', stats: { fum: 1, fum_lost: 1, idp_ff: 1, pass_sack: 1 } },
+      { pid: '6972', team: 'JAX', stats: { idp_fum_rec: 1 } },
+      { pid: 'JAX', team: 'JAX', stats: { qb_hit: 1, sack: 1, tkl: 1, tkl_solo: 1 } },
+    ],
+  };
+  const { for: mine } = api.scorePlay(play, new Map([['JAX', jax]]), [jax]);
+  assert.equal(mine.length, 1);
+  assert.equal(mine[0].pts, 3);          // sack 1 + fumble recovery 2
+  assert.equal(mine[0].legs.length, 1);  // one league tag, not two
+});
+
+test('scorePlay does not credit a defense for its own team fumbling', () => {
+  // The feed marks the forced fumble (idp_ff) on the row of the player who fumbled.
+  const ld = ldOf('Lil\' Shrimpers', 'L1');
+  const ne = player('NE', 'DEF', 'NE', [myLeg(ld)]);
+  const play = {
+    stats: [{ pid: '11564', team: 'NE', stats: { fum: 1, fum_lost: 1, idp_ff: 1, pass_sack: 1 } }],
+  };
+  const items = api.scorePlay(play, new Map([['NE', ne]]), [ne]);
+  assert.equal(items.for.length + items.against.length, 0);
+});
+
+test('scorePlay adds up a player listed in more than one row, and splits for/against', () => {
+  const mineLd = ldOf('Mine', 'L1');
+  const theirsLd = ldOf('Theirs', 'L2');
+  const wr = player('100', 'WR', 'DET', [myLeg(mineLd), theirLeg(theirsLd)]);
+  const play = {
+    stats: [
+      { pid: '100', team: 'DET', stats: { rec: 1, rec_yd: 20 } },
+      { pid: '100', team: 'DET', stats: { rec_yd: 20 } }, // same player, second row
+    ],
+  };
+  const { for: mine, against: theirs } = api.scorePlay(play, new Map([['100', wr]]), []);
+  assert.equal(mine.length, 1);
+  assert.equal(mine[0].pts, 5);   // 1 catch + 40 yards
+  assert.equal(theirs.length, 1); // he's started against you in the other league
+});
+
+test('slimPlay keeps the down and spot from the feed', () => {
+  const play = api.slimPlay({
+    play_id: 'p1',
+    metadata: {
+      description: 'J.Goff pass complete.', quarter_name: '2', time_remaining_minutes: 13,
+      time_remaining_seconds: 39, down: 1, distance: 10, yard_line: 46, yard_line_territory: 'NYJ',
+    },
+    play_stats: [{ player: { player_id: '100', team: 'DET' }, stats: { rec: 1 } }],
+  });
+  assert.equal(play.down, 1);
+  assert.equal(play.dist, 10);
+  assert.equal(play.spot, 'NYJ 46');
+  assert.equal(play.clock, '13:39');
+  assert.equal(play.stats.length, 1);
+});
+
+test('downSpot reads like a scoreboard, and skips what the feed leaves out', () => {
+  assert.equal(api.downSpot({ down: 1, dist: 10, spot: 'NYJ 46' }), '1st & 10 · NYJ 46');
+  assert.equal(api.downSpot({ down: 4, dist: 3, spot: 'BUF 13' }), '4th & 3 · BUF 13');
+  assert.equal(api.downSpot({ down: 0, dist: 0, spot: 'DET 35' }), 'DET 35'); // kickoff
+  assert.equal(api.downSpot({ down: 0, dist: 0, spot: '' }), '');
+});
+
+test('empty starting spots are listed in lineup order', () => {
+  const ld = {
+    league: league('L&D fantasy league', 'L1'),
+    final: false,
+    me: { roster: [
+      { pid: '1', slot: 'QB' }, { pid: null, slot: 'K' }, { pid: null, slot: 'FLEX' },
+      { pid: null, slot: 'BN' }, // an empty bench spot isn't a problem
+    ] },
+  };
+  assert.equal(api.emptyLine(ld).textContent, '⚠ 2 empty starting spots: FLEX, K');
+  assert.equal(api.emptyLine({ ...ld, final: true }), null);
+  assert.equal(api.emptyLine({ ...ld, me: { roster: [{ pid: '1', slot: 'QB' }] } }), null);
+});
+
+test('bye week warning names the starters with no game', () => {
+  const ld = {
+    league: league('Lil\' Shrimpers', 'L1'),
+    final: false,
+    me: { roster: [
+      { pid: '1', slot: 'QB', info: { name: 'J. Dart', pos: 'QB', team: 'NYG' }, game: { state: 'pre' } },
+      { pid: '2', slot: 'WR', info: { name: 'T. McMillan', pos: 'WR', team: 'CAR' }, game: null },
+      { pid: '3', slot: 'BN', info: { name: 'Benched', pos: 'RB', team: 'CAR' }, game: null },
+      { pid: '4', slot: 'RB', info: { name: 'Free agent', pos: 'RB', team: null }, game: null },
+    ] },
+  };
+  api.setCurrent({ model: { games: [{ id: '1', state: 'pre' }] } });
+  assert.equal(api.byeLine(ld).textContent, '⚠ Starter on bye: T. McMillan (WR)');
+  // With no schedule loaded, a missing game can't be told from a bye, so nothing is claimed.
+  api.setCurrent({ model: { games: [] } });
+  assert.equal(api.byeLine(ld), null);
+});
+
+test('safeAvatar only allows Sleeper and ESPN images', () => {
+  assert.equal(api.safeAvatar('https://sleepercdn.com/avatars/thumbs/abc'), 'https://sleepercdn.com/avatars/thumbs/abc');
+  assert.equal(api.safeAvatar('https://a.espncdn.com/i/teamlogos/nfl/500/dal.png'), 'https://a.espncdn.com/i/teamlogos/nfl/500/dal.png');
+  assert.equal(api.safeAvatar('https://mystique-api.fantasy.espn.com/x.png'), 'https://mystique-api.fantasy.espn.com/x.png');
+  assert.equal(api.safeAvatar('https://www.mensjournal.com/x.png'), null); // a custom ESPN logo elsewhere
+  assert.equal(api.safeAvatar('https://sleepercdn.com.evil.io/x.png'), null); // look-alike host
+  assert.equal(api.safeAvatar('http://sleepercdn.com/x.png'), null); // not https
+  assert.equal(api.safeAvatar(''), null);
+});
+
+test('teamLogo asks ESPN for a small copy of its 500px logos', () => {
+  assert.equal(
+    api.teamLogo('https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/buf.png'),
+    'https://a.espncdn.com/combiner/i?img=%2Fi%2Fteamlogos%2Fnfl%2F500%2Fscoreboard%2Fbuf.png&w=40&h=40',
+  );
+  assert.equal(api.teamLogo('https://www.mensjournal.com/x.png'), null);
+});
+
+test('isNewer compares version numbers, not text', () => {
+  assert.equal(api.isNewer('1.0.10', '1.0.9'), true);   // "1.0.10" sorts before "1.0.9" as text
+  assert.equal(api.isNewer('1.0.9', '1.0.10'), false);
+  assert.equal(api.isNewer('1.1', '1.0.16'), true);
+  assert.equal(api.isNewer('1.0.16', '1.0.16'), false);
+});
+
+test('live stats replace a matchup score only while a game is in progress', () => {
+  const makeLd = () => ({
+    league: league('Lil\' Shrimpers', 'L1'),
+    me: { m: { starters: ['live', 'final', 'pre'], players_points: { live: 10, final: 20, pre: 0, bench: 3 }, points: 30 } },
+    opp: null,
+  });
+  const games = { NYG: { state: 'in' }, KC: { state: 'post' }, BUF: { state: 'pre' } };
+  const proj = {
+    live: { team: 'NYG', player: { first_name: 'A', last_name: 'A', position: 'WR' } },
+    final: { team: 'KC', player: { first_name: 'B', last_name: 'B', position: 'WR' } },
+    pre: { team: 'BUF', player: { first_name: 'C', last_name: 'C', position: 'WR' } },
+    bench: { team: 'NYG', player: { first_name: 'D', last_name: 'D', position: 'WR' } },
+  };
+  const stats = new Map([
+    ['live', { rec: 5, rec_yd: 80, rec_td: 1 }], // 19, up from 10
+    ['final', { rec: 9, rec_yd: 150 }],          // ignored: his game is over
+    ['bench', { rec: 1, rec_yd: 5 }],            // counts for him, not the team total
+  ]);
+  const data = [makeLd()];
+  api.liveScores(data, stats, games, proj, null);
+  assert.equal(data[0].me.m.players_points.live, 19);
+  assert.equal(data[0].me.m.players_points.final, 20);
+  assert.equal(data[0].me.m.points, 39); // team total moves by the live starter's change only
+  assert.deepEqual([...data[0].me.m.live].sort(), ['bench', 'live']);
+
+  // If the stats don't load, everything keeps Sleeper's own numbers.
+  const untouched = [makeLd()];
+  api.liveScores(untouched, null, games, proj, null);
+  assert.equal(untouched[0].me.m.points, 30);
+  assert.equal(untouched[0].me.m.live, undefined);
+});
+
+test('points and projections read like Sleeper', () => {
+  assert.equal(api.fmt2(129.89), '129.89');
+  assert.equal(api.fmt2(134.1), '134.1');
+  assert.equal(api.fmt2(134), '134.0');
+  assert.equal(api.signed(7.4), '+7.4');
+  assert.equal(api.signed(-0.3), '−0.3');
+  assert.equal(api.signed(0), '0');
+});
+
+test('win chance follows the score, and settles once both sides are done', () => {
+  assert.equal(api.sleeperWinProb(100, 100, 90, 90), 1);   // final, you're ahead
+  assert.equal(api.sleeperWinProb(90, 90, 100, 100), 0);
+  assert.ok(Math.abs(api.sleeperWinProb(50, 120, 50, 120) - 0.5) < 1e-9); // dead even
+  const ahead = api.sleeperWinProb(80, 120, 40, 110);
+  assert.ok(ahead > 0.5 && ahead <= 0.99);
+});
+
+test('stat labels cover the tiers Sleeper sends', () => {
+  assert.equal(api.statLabel('rec_yd'), 'Receiving yards');
+  assert.equal(api.statLabel('pts_allow_28_34'), '28–34 points allowed');
+  assert.equal(api.statLabel('yds_allow_550p'), '550+ yards allowed');
+  assert.equal(api.statLabel('some_new_stat'), 'Some new stat'); // unknown keys still read as words
+});

@@ -1,0 +1,9 @@
+{
+  "name": "fantasy-sweat",
+  "private": true,
+  "description": "Developer tooling for the Fantasy Sweat extension. The extension itself is plain JS with no build step; nothing here ships to the Chrome Web Store.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

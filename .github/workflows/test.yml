@@ -1,0 +1,24 @@
+name: Tests
+
+# Checks the extension's logic on every pull request and on main. Nothing here is shipped: the store
+# zip is built in publish.yml from manifest.json, fantasy-sweat.html, popup.css, popup.js and icons.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Does popup.js parse?
+        run: node --check popup.js
+
+      - name: Run the tests
+        run: npm test
