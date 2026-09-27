@@ -4,6 +4,11 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### New
+- **Injury warning:** a league card warns when one of your starters is listed **Out**, **IR**, **PUP**, **Suspended** or **Doubtful**, e.g. "⚠ Check your lineup: T. Etienne (RB · Out)". It shows only while his game hasn't kicked off, so a status that changes mid-game doesn't nag you. Questionable players, who usually play, aren't flagged.
+
 ## 1.0.16 — 2026-09-27
 
 ### Changed

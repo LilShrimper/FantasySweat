@@ -122,6 +122,30 @@ test('bye week warning names the starters with no game', () => {
   assert.equal(api.byeLine(ld), null);
 });
 
+test('a starter who probably will not play is flagged, but only before kickoff', () => {
+  const starter = (name, pos, inj, state) => ({ pid: name, slot: pos, info: { name, pos, team: 'NYG', inj }, game: state ? { state } : null });
+  const ld = {
+    league: league('Lil\' Shrimpers', 'L1'),
+    final: false,
+    me: { roster: [
+      starter('T. Etienne', 'RB', 'Out', 'pre'),
+      starter('J. Dart', 'QB', 'Doubtful', 'pre'),
+      starter('I. Likely', 'TE', 'Questionable', 'pre'), // questionable players usually play
+      starter('A. Brown', 'WR', 'Out', 'in'),            // his game is on — nothing to do about it now
+      starter('D. Moore', 'WR', 'IR', 'post'),           // game over
+      { pid: 'bench', slot: 'BN', info: { name: 'Benched', pos: 'RB', team: 'NYG', inj: 'Out' }, game: { state: 'pre' } },
+    ] },
+  };
+  assert.equal(api.sittingLine(ld).textContent, '⚠ Check your lineup: T. Etienne (RB · Out), J. Dart (QB · Doubtful)');
+  assert.equal(api.sittingLine({ ...ld, final: true }), null);
+  // Healthy lineup: no warning.
+  assert.equal(api.sittingLine({ ...ld, me: { roster: [starter('T. Etienne', 'RB', null, 'pre')] } }), null);
+  // Every status that counts, and one that doesn't.
+  const only = (inj) => api.sittingStarters({ roster: [starter('X', 'RB', inj, 'pre')] }).length;
+  for (const inj of ['Out', 'IR', 'PUP', 'Sus', 'Doubtful']) assert.equal(only(inj), 1, inj);
+  assert.equal(only('Questionable'), 0);
+});
+
 test('safeAvatar only allows Sleeper and ESPN images', () => {
   assert.equal(api.safeAvatar('https://sleepercdn.com/avatars/thumbs/abc'), 'https://sleepercdn.com/avatars/thumbs/abc');
   assert.equal(api.safeAvatar('https://a.espncdn.com/i/teamlogos/nfl/500/dal.png'), 'https://a.espncdn.com/i/teamlogos/nfl/500/dal.png');

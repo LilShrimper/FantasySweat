@@ -917,7 +917,8 @@ function leagueCard(ld) {
     h('div', { class: 'bar', title: `Win chance ${Math.round(p * 100)}%` }, h('i', { style: `width:${(p * 100).toFixed(1)}%` })),
     toPlayLine(ld),
     emptyLine(ld),
-    byeLine(ld));
+    byeLine(ld),
+    sittingLine(ld));
 }
 
 // A starting spot with nobody in it scores nothing, so say which slots are empty.
@@ -928,6 +929,24 @@ function emptyLine(ld) {
   const slots = empty.map((r) => r.slot).sort((a, b) => SLOT_ORDER.indexOf(a) - SLOT_ORDER.indexOf(b)).join(', ');
   return h('div', { class: 'bye-warn', title: `An empty spot scores nothing. Start someone on ${ld.league.espn ? 'ESPN' : 'Sleeper'}.` },
     `⚠ ${empty.length === 1 ? 'Empty starting spot' : `${empty.length} empty starting spots`}: ${slots}`);
+}
+
+// Starters who probably won't play. Only until his game kicks off: a status that turns up mid-game is
+// news, not something you can still fix. Questionable is left out — those players usually play.
+const SITTING_OUT = { Out: 'Out', IR: 'IR', PUP: 'PUP', Sus: 'Suspended', Doubtful: 'Doubtful' };
+
+function sittingStarters(side) {
+  return (side?.roster || []).filter((r) => r.pid && !BENCH_SLOTS.includes(r.slot)
+    && r.game?.state === 'pre' && SITTING_OUT[r.info?.inj]);
+}
+
+function sittingLine(ld) {
+  if (ld.final) return null;
+  const out = sittingStarters(ld.me);
+  if (!out.length) return null;
+  const names = out.map((r) => `${r.info.name} (${r.info.pos === 'DEF' ? 'D/ST' : r.info.pos} · ${SITTING_OUT[r.info.inj]})`).join(', ');
+  return h('div', { class: 'bye-warn', title: `Listed out, on IR/PUP, suspended or doubtful, and his game hasn’t kicked off. Swap him on ${ld.league.espn ? 'ESPN' : 'Sleeper'} if he sits.` },
+    `⚠ Check your lineup: ${names}`);
 }
 
 // Your starters whose NFL team has no game this week: they'll score 0, so remind you to swap them.
