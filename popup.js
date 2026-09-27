@@ -1597,21 +1597,36 @@ function scorePlay(play, byPid, defs) {
       it.legs.push({ leg, pts });
     }
   };
+  // One entry per player, since a play can list him more than once (e.g. a fumble on a reception).
+  const perPlayer = new Map();
   for (const s of play.stats) {
     const pl = byPid.get(s.pid);
-    if (pl) add(pl, s.stats);
+    if (!pl) continue;
+    const stats = perPlayer.get(pl) || {};
+    for (const [k, v] of Object.entries(s.stats)) {
+      if (typeof v === 'number') stats[k] = (stats[k] || 0) + v;
+    }
+    perPlayer.set(pl, stats);
   }
   // Team defenses: add up the defenders' stats on this play (idp_sack → sack, idp_int → int, ...).
+  // The feed often has a row for the defense itself as well, and the two overlap (a sack can be in
+  // both), so each stat takes whichever side is higher instead of counting it twice.
   for (const d of defs) {
     const agg = {};
     for (const s of play.stats) {
-      if (s.team !== d.info.team) continue;
+      // The feed marks a forced fumble on the row of the player who fumbled, so his own defense
+      // would be credited with it. Rows with a fumble belong to the offense — skip them.
+      if (s.team !== d.info.team || s.stats.fum) continue;
       for (const [k, v] of Object.entries(s.stats)) {
         if (k.startsWith('idp_') && typeof v === 'number') agg[k.slice(4)] = (agg[k.slice(4)] || 0) + v;
       }
     }
-    if (Object.keys(agg).length) add(d, agg);
+    if (!Object.keys(agg).length) continue;
+    const stats = perPlayer.get(d) || {};
+    for (const [k, v] of Object.entries(agg)) stats[k] = Math.max(stats[k] || 0, v);
+    perPlayer.set(d, stats);
   }
+  for (const [pl, stats] of perPlayer) add(pl, stats);
   return items;
 }
 
