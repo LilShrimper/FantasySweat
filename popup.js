@@ -687,7 +687,7 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
     pl.game = games[pl.info.team] || null;
     pl.verdict = pl.net > 0 ? 'cheer' : pl.net < 0 ? 'boo' : 'hedge';
     pl.projShown = Math.max(...pl.legs.map((l) => l.proj));
-    pl.ptsShown = Math.max(...pl.legs.map((l) => l.pts));
+    pl.ptsShown = headlinePts(pl.legs);
   }
 
   // Full rosters for the roster panel: who each player is, his game, and his points and projection
@@ -1003,16 +1003,49 @@ function injBadge(inj) {
 }
 
 // A league's tag chip for one leg of a player: + if he's your starter there, − if your opponent's.
-const legChip = (leg, extra = '') => h('span', {
+// `shown` (already formatted) puts a number inside the chip, for when the same player or play is
+// worth different points in different leagues.
+const legChip = (leg, extra = '', shown = null) => h('span', {
   class: `chip ${leg.side > 0 ? 'for' : 'against'}`,
   style: `--lc:${leg.ld.color}`,
   title: `${leg.side > 0 ? 'Your starter' : `Started by ${teamLabel(leg.ld, leg.ld.opp)}`} in ${leg.ld.league.name}${extra}`,
-}, leagueTag(leg.ld.league));
+}, leagueTag(leg.ld.league), shown != null ? h('span', { class: 'chip-pts' }, shown) : null);
+
+// True when a player is worth different points in different leagues (PPR vs standard, a bonus for
+// long field goals, and so on), so one number on his row would be right for only some of them.
+const legPtsVary = (legs) => new Set(legs.map((l) => Math.round(l.pts * 100))).size > 1;
+const samePts = (a, b) => Math.round(a * 100) === Math.round(b * 100);
+
+// The number on a player's row, and on one of his plays. When his leagues score him differently,
+// it's the one most of them give — the smaller swing when they're split evenly — so nothing is
+// quoting his best league and calling it his total. The leagues that don't match say so on their
+// own chips.
+function headlinePts(legs) {
+  const groups = new Map(); // points (to the cent) → how many leagues score him that
+  for (const l of legs) {
+    const key = Math.round(l.pts * 100);
+    const g = groups.get(key);
+    if (g) g.n++;
+    else groups.set(key, { pts: l.pts, n: 1 });
+  }
+  let best = null;
+  for (const g of groups.values()) if (!best || g.n > best.n || (g.n === best.n && Math.abs(g.pts) < Math.abs(best.pts))) best = g;
+  return best ? best.pts : 0;
+}
 
 function playerRow(pl, { showGame = false } = {}) {
   const g = pl.game;
-  const box = ptsBox(g, pl.info, `Live fantasy points${srcNote(pl.legs.map((l) => l.src))}`);
-  const chips = pl.legs.map((l) => legChip(l));
+  // When his leagues disagree, the hover spells out what each one scores him.
+  const byLeague = legPtsVary(pl.legs)
+    ? `\n${pl.legs.map((l) => `${leagueTag(l.ld.league)}: ${fmt2(l.pts)}`).join(' · ')}`
+    : '';
+  const box = ptsBox(g, pl.info, `Live fantasy points${srcNote(pl.legs.map((l) => l.src))}${byLeague}`);
+  // Only the leagues whose number isn't the one on the row carry it, so a player scored the same
+  // everywhere (nearly all of them) looks exactly as he did.
+  const chips = pl.legs.map((l) => {
+    const off = !samePts(l.pts, pl.ptsShown);
+    return legChip(l, off ? `: ${fmt2(l.pts)} pts under its scoring` : '', off ? fmt2(l.pts) : null);
+  });
   const gameText = showGame ? gameLine(g, pl.info.team) : null;
   return h('div', { class: 'pl bd-open', ...breakdownHandlers(pl.pid, pl.legs.map((l) => l.ld.league.league_id)) },
     h('div', { class: 'pl-main' },
@@ -1605,7 +1638,8 @@ const playWhen = (play) => {
 };
 
 // One play's fantasy points for the players in it, split into your starters and your opponents'
-// ({ for, against }). Each league scores it its own way; the biggest swing across leagues is kept.
+// ({ for, against }). Each league scores it its own way, so the number kept is the one most of them
+// give it, same as a player's row; each league's own is on `legs`.
 function scorePlay(play, byPid, defs) {
   const items = { for: [], against: [] };
   const add = (pl, stats) => {
@@ -1615,8 +1649,8 @@ function scorePlay(play, byPid, defs) {
       const bucket = items[leg.side > 0 ? 'for' : 'against'];
       let it = bucket.find((x) => x.pl === pl);
       if (!it) bucket.push((it = { pl, pts, legs: [] }));
-      if (Math.abs(pts) > Math.abs(it.pts)) it.pts = pts; // biggest swing across leagues
       it.legs.push({ leg, pts });
+      it.pts = headlinePts(it.legs);
     }
   };
   // One entry per player, since a play can list him more than once (e.g. a fumble on a reception).
@@ -1740,7 +1774,9 @@ function playItem(it, side) {
         h('span', { class: 'lp-name' }, x.pl.info.name,
           x.pl.info.num != null && x.pl.info.num !== '' ? h('span', { class: 'num' }, ` #${x.pl.info.num}`) : null),
         h('span', { class: 'pj' }, x.pl.info.pos),
-        x.legs.map((l) => legChip(l.leg, `: ${signed(l.pts)}`)));
+        // Same as a player's row: only the leagues that don't score the play the way the number
+        // beside it says carry their own.
+        x.legs.map((l) => legChip(l.leg, `: ${signed(l.pts)}`, samePts(l.pts, x.pts) ? null : signed(l.pts))));
     }),
     h('div', { class: 'lp-desc' },
       play.scoring ? h('span', { class: 'lp-badge' }, /touchdown/i.test(play.desc) ? 'TD' : 'SCORE') : null,
@@ -1908,7 +1944,7 @@ function scopeToLeague(model, leagueIds, { keepAll = false } = {}) {
       impact: legs.reduce((s, l) => s + l.side * Math.max(l.proj, 1), 0),
       verdict: net > 0 ? 'cheer' : net < 0 ? 'boo' : 'hedge',
       projShown: Math.max(...legs.map((l) => l.proj)),
-      ptsShown: Math.max(...legs.map((l) => l.pts)),
+      ptsShown: headlinePts(legs),
     });
   }
   const games = model.games

@@ -21,6 +21,7 @@ const NAMES = [
   'byeLine', 'byeStarters', 'stillToPlay', 'playerInfo', 'cardName', 'leagueTag',
   'sittingLine', 'sittingStarters',
   'lookSummary', 'lookSnapshot', 'agoText', 'sinceParts', 'sinceClass',
+  'headlinePts', 'legPtsVary', 'samePts',
 ];
 const EXPORTS = `
 globalThis.__api = {

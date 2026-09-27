@@ -301,3 +301,40 @@ test('stat labels cover the tiers Sleeper sends', () => {
   assert.equal(api.statLabel('yds_allow_550p'), '550+ yards allowed');
   assert.equal(api.statLabel('some_new_stat'), 'Some new stat'); // unknown keys still read as words
 });
+
+test('a player scored differently in each league leads with the number most of them give', () => {
+  const legs = (...pts) => pts.map((p) => ({ pts: p }));
+  // Reichard: 50-yard FG worth 5 in two leagues, 5.5 plus a 1.5 bonus in the third.
+  assert.equal(api.headlinePts(legs(6, 8, 6)), 6);
+  assert.equal(api.legPtsVary(legs(6, 8, 6)), true);
+  // Split evenly: the lower number leads, so the row never quotes his best league.
+  assert.equal(api.headlinePts(legs(15, 17)), 15);
+  assert.equal(api.headlinePts(legs(42.9, 35.3)), 35.3);
+  // One league, or leagues that agree: nothing changes and no chip carries a number.
+  assert.equal(api.headlinePts(legs(9.4)), 9.4);
+  assert.equal(api.headlinePts(legs(9.4, 9.4, 9.4)), 9.4);
+  assert.equal(api.legPtsVary(legs(9.4, 9.4, 9.4)), false);
+  // Hundredths apart is a real difference; rounding noise below a cent isn't.
+  assert.equal(api.legPtsVary(legs(9.41, 9.4)), true);
+  assert.equal(api.legPtsVary(legs(9.4, 9.4001)), false);
+  assert.equal(api.samePts(6, 6.001), true);
+});
+
+test('a play worth more in one league leads with what most of them pay', () => {
+  // Half PPR in two leagues, full PPR in the third: a 10-yard catch is 1.5 / 1.5 / 2.
+  const half = { ...scoring, rec: 0.5 };
+  const ldWith = (name, id, s) => ({ league: { league_id: id, name, scoring_settings: s }, color: '#6c8cff' });
+  const a = ldWith('Half A', 'L1', half), b = ldWith('Half B', 'L2', half), c = ldWith('Full', 'L3', scoring);
+  const wr = player('100', 'WR', 'DET', [myLeg(a), myLeg(b), myLeg(c)]);
+  const play = { stats: [{ pid: '100', team: 'DET', stats: { rec: 1, rec_yd: 10 } }] };
+  const { for: mine } = api.scorePlay(play, new Map([['100', wr]]), []);
+  assert.equal(mine[0].pts, 1.5);                              // not the 2 the one full-PPR league pays
+  assert.equal(mine[0].legs.length, 3);                        // every league still gets its chip
+  assert.deepEqual([...mine[0].legs].map((l) => l.pts), [1.5, 1.5, 2]); // spread: the vm's arrays aren't ours
+});
+
+test('split evenly, the headline takes the smaller swing either way', () => {
+  const legs = (...pts) => pts.map((p) => ({ pts: p }));
+  assert.equal(api.headlinePts(legs(15, 17)), 15);
+  assert.equal(api.headlinePts(legs(-1, -2)), -1); // a play against you isn't made out worse than it is
+});
