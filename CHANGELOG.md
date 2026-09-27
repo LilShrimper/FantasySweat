@@ -4,10 +4,10 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
-## Unreleased
+## 1.0.19 — 2026-09-27
 
 ### Changed
-- **Points breakdown:** the panel is titled with the player's full name — "Kyler Murray" where his row says "K. Murray", and "Minnesota Vikings D/ST" where it says "MIN D/ST". The rows themselves keep the short name.
+- **Points breakdown:** the panel is titled with the player's full name — "Kyler Murray" where his row says "K. Murray", and "Minnesota Vikings D/ST" where it says "MIN D/ST". The rows themselves keep the short name. (#73)
 
 ## 1.0.18 — 2026-09-27
 
