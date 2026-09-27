@@ -364,3 +364,21 @@ test('a projection follows the game: pre-game, then Sleeper\'s blend, then his r
   // Scoreboard didn't load: treat everyone as not started rather than as finished at 0.
   assert.equal(api.liveProj(0, 9.4, null, true), 9.4);
 });
+
+test('a player has both a short name for the rows and a full one for the breakdown', () => {
+  const dump = { '1': ['Kyler', 'Murray', 'QB', 'ARI', null, 1, null], 'MIN': ['Minnesota', 'Vikings', 'DEF', 'MIN', null, null, null] };
+  const proj = { '2': { player: { first_name: 'Will', last_name: 'Reichard', position: 'K', team: 'MIN' }, team: 'MIN' } };
+  const kyler = api.playerInfo('1', proj, dump, {});
+  assert.equal(kyler.name, 'K. Murray');
+  assert.equal(kyler.full, 'Kyler Murray');
+  const will = api.playerInfo('2', proj, dump, {});
+  assert.equal(will.name, 'W. Reichard');
+  assert.equal(will.full, 'Will Reichard');
+  // A defense keeps its abbreviation on the rows and gets its city and nickname in the breakdown.
+  const def = api.playerInfo('MIN', proj, dump, {});
+  assert.equal(def.name, 'MIN D/ST');
+  assert.equal(def.full, 'Minnesota Vikings D/ST');
+  // Nobody knows who he is: both names say the same thing rather than one of them being empty.
+  const unknown = api.playerInfo('999', {}, {}, {});
+  assert.equal(unknown.name, unknown.full);
+});
