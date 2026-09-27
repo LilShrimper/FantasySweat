@@ -19,6 +19,7 @@ const NAMES = [
   'leagueProj', 'scorePlay', 'slimPlay', 'downSpot', 'safeAvatar', 'teamLogo', 'isNewer', 'initials',
   'sleeperWinProb', 'secondsLeft', 'statLabel', 'fmt2', 'fmtPts', 'signed', 'liveScores', 'emptyLine',
   'byeLine', 'byeStarters', 'stillToPlay', 'playerInfo', 'cardName', 'leagueTag',
+  'sittingLine', 'sittingStarters',
   'lookSummary', 'lookSnapshot', 'agoText', 'sinceParts', 'sinceClass',
 ];
 const EXPORTS = `
