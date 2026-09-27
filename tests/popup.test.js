@@ -338,3 +338,14 @@ test('split evenly, the headline takes the smaller swing either way', () => {
   assert.equal(api.headlinePts(legs(15, 17)), 15);
   assert.equal(api.headlinePts(legs(-1, -2)), -1); // a play against you isn't made out worse than it is
 });
+
+test('projections lead the same way as points', () => {
+  const legs = (...proj) => proj.map((p) => ({ proj: p }));
+  // Every league projects him a little differently, so none of them is "most": the smallest leads,
+  // rather than the row advertising his best league's projection.
+  assert.equal(api.headlineProj(legs(10.63, 9.88, 9.9)), 9.88);
+  assert.equal(api.headlineProj(legs(12.4, 9.9, 9.9)), 9.9); // two agree, so they win
+  assert.equal(api.headlineProj(legs(14.71)), 14.71);
+  assert.equal(api.legProjVary(legs(9.9, 9.9)), false);
+  assert.equal(api.legProjVary(legs(9.9, 10.63)), true);
+});

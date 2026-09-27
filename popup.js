@@ -686,7 +686,7 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
     pl.rank = ranks?.map[pl.pid] ?? null;
     pl.game = games[pl.info.team] || null;
     pl.verdict = pl.net > 0 ? 'cheer' : pl.net < 0 ? 'boo' : 'hedge';
-    pl.projShown = Math.max(...pl.legs.map((l) => l.proj));
+    pl.projShown = headlineProj(pl.legs);
     pl.ptsShown = headlinePts(pl.legs);
   }
 
@@ -1016,30 +1016,35 @@ const legChip = (leg, extra = '', shown = null) => h('span', {
 const legPtsVary = (legs) => new Set(legs.map((l) => Math.round(l.pts * 100))).size > 1;
 const samePts = (a, b) => Math.round(a * 100) === Math.round(b * 100);
 
-// The number on a player's row, and on one of his plays. When his leagues score him differently,
-// it's the one most of them give — the smaller swing when they're split evenly — so nothing is
-// quoting his best league and calling it his total. The leagues that don't match say so on their
-// own chips.
-function headlinePts(legs) {
-  const groups = new Map(); // points (to the cent) → how many leagues score him that
-  for (const l of legs) {
-    const key = Math.round(l.pts * 100);
+// The number to lead with when a player's leagues don't agree: the one most of them give — the
+// smaller swing when they're split evenly — so nothing quotes his best league and calls it his
+// total. The leagues that don't match say so on their own chips.
+function headline(values) {
+  const groups = new Map(); // a value (to the cent) → how many leagues give it
+  for (const v of values) {
+    const key = Math.round(v * 100);
     const g = groups.get(key);
     if (g) g.n++;
-    else groups.set(key, { pts: l.pts, n: 1 });
+    else groups.set(key, { v, n: 1 });
   }
   let best = null;
-  for (const g of groups.values()) if (!best || g.n > best.n || (g.n === best.n && Math.abs(g.pts) < Math.abs(best.pts))) best = g;
-  return best ? best.pts : 0;
+  for (const g of groups.values()) if (!best || g.n > best.n || (g.n === best.n && Math.abs(g.v) < Math.abs(best.v))) best = g;
+  return best ? best.v : 0;
 }
+const headlinePts = (legs) => headline(legs.map((l) => l.pts));
+// Projections are worked out from each league's scoring too, so they drift apart the same way.
+const headlineProj = (legs) => headline(legs.map((l) => l.proj));
+const legProjVary = (legs) => new Set(legs.map((l) => Math.round(l.proj * 100))).size > 1;
 
 function playerRow(pl, { showGame = false } = {}) {
   const g = pl.game;
-  // When his leagues disagree, the hover spells out what each one scores him.
-  const byLeague = legPtsVary(pl.legs)
-    ? `\n${pl.legs.map((l) => `${leagueTag(l.ld.league)}: ${fmt2(l.pts)}`).join(' · ')}`
-    : '';
-  const box = ptsBox(g, pl.info, `Live fantasy points${srcNote(pl.legs.map((l) => l.src))}${byLeague}`);
+  // When his leagues disagree, the hover spells out what each one scores him, and what each one
+  // projects. Projections nearly always differ a little, so they never go on the chips.
+  const perLeague = (label, pick) => `\n${label}${pl.legs.map((l) => `${leagueTag(l.ld.league)}: ${fmt2(pick(l))}`).join(' · ')}`;
+  const byLeague = (legPtsVary(pl.legs) ? perLeague('', (l) => l.pts) : '')
+    + (legProjVary(pl.legs) ? perLeague('proj ', (l) => l.proj) : '');
+  const box = ptsBox(g, pl.info, `Live fantasy points${srcNote(pl.legs.map((l) => l.src))}`);
+  box.title += byLeague; // after the red-zone note ptsBox adds, so the list of leagues reads last
   // Only the leagues whose number isn't the one on the row carry it, so a player scored the same
   // everywhere (nearly all of them) looks exactly as he did.
   const chips = pl.legs.map((l) => {
@@ -1059,7 +1064,7 @@ function playerRow(pl, { showGame = false } = {}) {
     h('div', { class: box.class },
       h('span', { class: 'v', title: box.title }, fmt2(pl.ptsShown)),
       lastPlays.has(pl.pid) ? gainTag(pl, lastPlays.get(pl.pid)) : null,
-      h('span', { class: 'p' }, `proj ${fmt2(pl.projShown)}`)));
+      h('span', { class: 'p', title: box.title }, `proj ${fmt2(pl.projShown)}`)));
 }
 
 // His latest scoring play beside his points ("+6.5"): green when it helped you, red when it hurt,
@@ -1943,7 +1948,7 @@ function scopeToLeague(model, leagueIds, { keepAll = false } = {}) {
       net,
       impact: legs.reduce((s, l) => s + l.side * Math.max(l.proj, 1), 0),
       verdict: net > 0 ? 'cheer' : net < 0 ? 'boo' : 'hedge',
-      projShown: Math.max(...legs.map((l) => l.proj)),
+      projShown: headlineProj(legs),
       ptsShown: headlinePts(legs),
     });
   }
