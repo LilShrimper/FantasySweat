@@ -20,6 +20,7 @@ const NAMES = [
   'sleeperWinProb', 'secondsLeft', 'statLabel', 'fmt2', 'fmtPts', 'signed', 'liveScores', 'emptyLine',
   'byeLine', 'byeStarters', 'stillToPlay', 'playerInfo', 'cardName', 'leagueTag',
   'sittingLine', 'sittingStarters',
+  'lookSummary', 'lookSnapshot', 'agoText', 'sinceParts', 'sinceClass',
 ];
 const EXPORTS = `
 globalThis.__api = {

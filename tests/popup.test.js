@@ -122,6 +122,84 @@ test('bye week warning names the starters with no game', () => {
   assert.equal(api.byeLine(ld), null);
 });
 
+test('what changed since your last look', () => {
+  const snap = (at, week, leagues) => ({ at, week, leagues });
+  const hour = 3600_000;
+  const before = snap(1_000_000, 3, {
+    L1: { me: 100, opp: 90, win: 0.61 },
+    L2: { me: 50, opp: 80, win: 0.2 },
+    L3: { me: 70, opp: 70, win: 0.5 }, // untouched while you were away
+  });
+  const after = snap(1_000_000 + 2 * hour, 3, {
+    L1: { me: 112.4, opp: 93.1, win: 0.74 },
+    L2: { me: 56.2, opp: 86.1, win: 0.18 },
+    L3: { me: 70, opp: 70, win: 0.5 },
+  });
+  const s = api.lookSummary(before, after);
+  assert.equal(s.leagues.length, 2);          // the matchup that didn't move is left out
+  assert.equal(s.leagues[0].id, 'L1');        // biggest swing first (+12.4 vs +3.1)
+  assert.equal(s.leagues[0].me, 12.4);
+  assert.equal(s.leagues[0].opp, 3.1);
+  assert.equal(s.leagues[1].id, 'L2');
+  assert.equal(s.leagues[1].me, 6.2);
+  assert.equal(api.agoText(s.away), '2h ago');
+
+  // Nothing to say: no earlier look, a different week, too soon, or no change at all.
+  assert.equal(api.lookSummary(null, after), null);
+  assert.equal(api.lookSummary({ ...before, week: 2 }, after), null);
+  assert.equal(api.lookSummary(snap(after.at - 60_000, 3, before.leagues), after), null);
+  assert.equal(api.lookSummary(before, snap(before.at + 2 * hour, 3, before.leagues)), null);
+
+  // A league hidden since the last look is skipped rather than counted as a change.
+  const narrowed = api.lookSummary(before, snap(after.at, 3, { L1: after.leagues.L1 }));
+  assert.equal(narrowed.leagues.length, 1);
+  assert.equal(narrowed.leagues[0].me, 12.4);
+});
+
+test('the bar names each league rather than adding them together', () => {
+  const tagFor = (id) => ({ L1: 'LS', L2: 'IJF', L3: 'LFL', L4: 'GLG' })[id];
+  const summary = (n) => ({ away: 0, leagues: [
+    { id: 'L1', me: 12.4, opp: 3.1 }, { id: 'L2', me: 6.2, opp: 6.1 },
+    { id: 'L3', me: -2, opp: 4 }, { id: 'L4', me: 0.5, opp: 0 },
+  ].slice(0, n) });
+  const parts = (n, max) => { const p = api.sinceParts(summary(n), tagFor, max); return { rows: [...p.rows].map((r) => ({ ...r })), more: p.more }; };
+  assert.deepEqual(parts(1), { rows: [{ tag: 'LS', me: 12.4, opp: 3.1 }], more: 0 });
+  assert.deepEqual(parts(2).rows.map((r) => r.tag), ['LS', 'IJF']);
+  // Beyond what fits, the rest are counted — the hover still lists them all.
+  assert.equal(parts(4).more, 2);
+  // A wider window (the full tab) names more of them.
+  assert.equal(parts(4, 4).rows.length, 4);
+  assert.equal(parts(4, 4).more, 0);
+});
+
+test('gains for you are green, gains against you are red', () => {
+  assert.equal(api.sinceClass(12.4, true), 'good');   // you scored
+  assert.equal(api.sinceClass(-2, true), 'bad');      // a correction took points off you
+  assert.equal(api.sinceClass(9.4, false), 'bad');    // your opponent scored
+  assert.equal(api.sinceClass(-1.5, false), 'good');
+  assert.equal(api.sinceClass(0, true), '');          // no change, no color
+  assert.equal(api.sinceClass(0, false), '');
+});
+
+test('how long you were away reads plainly', () => {
+  assert.equal(api.agoText(25 * 60_000), '25 min ago');
+  assert.equal(api.agoText(3 * 3600_000), '3h ago');
+  assert.equal(api.agoText(50 * 3600_000), '2d ago');
+});
+
+test('a snapshot keeps every matchup, and skips leagues without one', () => {
+  const ldOfWithSides = (id, me, opp, win) => ({
+    league: league(id, id), me: { m: { points: me } }, opp: opp == null ? null : { m: { points: opp } }, winPct: win,
+  });
+  const snap = api.lookSnapshot({
+    week: 4,
+    model: { leagues: [ldOfWithSides('L1', 100, 90, 0.6), ldOfWithSides('L2', 50, null, 0.5)] },
+  });
+  assert.equal(snap.week, 4);
+  assert.deepEqual(Object.keys(snap.leagues), ['L1']); // a bye week has no matchup to compare
+  assert.deepEqual({ ...snap.leagues.L1 }, { me: 100, opp: 90, win: 0.6 });
+});
+
 test('a starter who probably will not play is flagged, but only before kickoff', () => {
   const starter = (name, pos, inj, state) => ({ pid: name, slot: pos, info: { name, pos, team: 'NYG', inj }, game: state ? { state } : null });
   const ld = {

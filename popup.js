@@ -1748,6 +1748,114 @@ function playItem(it, side) {
     h('div', { class: 'lp-when', title: clockTime ? `Shown on the feed at ${clockTime}` : null }, when));
 }
 
+// ---------- what changed since your last look ----------
+// Every refresh saves where each matchup stood, so the saved copy is from the last moment Fantasy Sweat
+// was actually in front of you. Opening it again later, a bar at the top says what moved while you were
+// away. Only worked out once per session, and only for the week you were looking at.
+const LAST_LOOK_GAP_MS = 10 * 60_000; // anything shorter isn't "since last time", it's just now
+let sinceSummary = null;
+let sinceChecked = false;
+
+const round2 = (n) => Math.round(n * 100) / 100;
+const pct = (p) => `${Math.round((p ?? 0.5) * 100)}%`;
+const agoText = (ms) => {
+  const mins = Math.round(ms / 60_000);
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  return hrs < 36 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
+};
+
+const lookSnapshot = (data) => ({
+  at: Date.now(),
+  week: data.week,
+  leagues: Object.fromEntries((data.model?.leagues || []).filter((ld) => ld.me && ld.opp)
+    .map((ld) => [ld.league.league_id, { me: ld.me.m.points, opp: ld.opp.m.points, win: ld.winPct ?? 0.5 }])),
+});
+
+// What moved between two snapshots, per league and in total. null when there's nothing worth saying:
+// no earlier look, a different week, too little time, or nothing changed.
+function lookSummary(prev, now) {
+  if (!prev?.leagues || prev.week !== now.week) return null;
+  const away = now.at - (prev.at || 0);
+  if (away < LAST_LOOK_GAP_MS) return null;
+  const moved = [];
+  for (const [id, was] of Object.entries(prev.leagues)) {
+    const is = now.leagues[id];
+    if (!is) continue; // a league you've since hidden
+    const l = { id, me: round2(is.me - was.me), opp: round2(is.opp - was.opp), win: is.win, wasWin: was.win };
+    if (l.me || l.opp || pct(l.win) !== pct(l.wasWin)) moved.push(l);
+  }
+  if (!moved.length) return null;
+  // Biggest swing first: leagues score differently, so the matchups that moved most are what matter,
+  // not a total across them.
+  moved.sort((a, b) => Math.abs(b.me - b.opp) - Math.abs(a.me - a.opp));
+  return { away, leagues: moved };
+}
+
+// "LS +12.4 / +3.1 · IJF +6.2 / +6.1" — your change, then your opponent's, per league. The rest are
+// counted, and all of them are spelled out in the hover text. Two fit a popup; the full tab holds more.
+const SINCE_SHOWN = 2;
+function sinceParts(summary, tagFor, max = SINCE_SHOWN) {
+  const rows = summary.leagues.slice(0, max).map((l) => ({ tag: tagFor(l.id), me: l.me, opp: l.opp }));
+  return { rows, more: summary.leagues.length - rows.length };
+}
+// Colored the way the rest of the app is: points you gained are green, points against you are red.
+const sinceClass = (n, forYou) => (!n ? '' : (n > 0) === forYou ? 'good' : 'bad');
+
+async function trackLastLook(data) {
+  // A window behind another one, or a full tab in the background, keeps refreshing but nobody's reading
+  // it — so it doesn't count as looking, and must not keep the saved snapshot fresh.
+  if (document.hidden) return;
+  const snap = lookSnapshot(data);
+  if (!Object.keys(snap.leagues).length) return;
+  const prev = await store.get('lastLook');
+  if (!sinceChecked) {
+    sinceChecked = true;
+    sinceSummary = lookSummary(prev, snap);
+  }
+  await store.set('lastLook', snap);
+}
+
+// Coming back to a tab or window that was in the background counts as a new look, so work out what
+// moved while it sat there.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !current) return;
+  sinceChecked = false;
+  trackLastLook(current).then(render);
+});
+
+// The bar above the league cards. ✕ puts it away until the next time you open Fantasy Sweat.
+function showSince() {
+  const bar = $('#sinceBar');
+  if (!sinceSummary) {
+    bar.hidden = true;
+    return;
+  }
+  const s = sinceSummary;
+  const leagueOf = (id) => current?.model.leagues.find((x) => x.league.league_id === id);
+  const tagFor = (id) => { const ld = leagueOf(id); return ld ? leagueTag(ld.league) : '?'; };
+  const detail = ['Your change / your opponent’s, per league:', ...s.leagues
+    .map((l) => `${leagueOf(l.id)?.league.name || 'League'}: you ${signed(l.me)}, opponent ${signed(l.opp)} · win ${pct(l.wasWin)} → ${pct(l.win)}`)].join('\n');
+  // The popup is narrow, so it names fewer leagues than the full tab; the hover has them all.
+  const { rows, more } = sinceParts(s, tagFor, MODE === 'popup' ? SINCE_SHOWN : SINCE_SHOWN + 2);
+  const cells = rows.flatMap((r, i) => [
+    i ? h('span', { class: 'since-dot' }, ' · ') : null,
+    h('span', { class: 'since-lg' }, `${r.tag} `),
+    h('span', { class: sinceClass(r.me, true) }, signed(r.me)),
+    ' / ',
+    h('span', { class: sinceClass(r.opp, false) }, signed(r.opp)),
+  ].filter(Boolean));
+  bar.replaceChildren(
+    h('span', { class: 'since-text', title: detail },
+      `Since your last look (${agoText(s.away)}): `, ...cells,
+      more > 0 ? h('span', { class: 'since-more' }, ` · +${more} more`) : null),
+    h('button', {
+      type: 'button', class: 'ghost x', title: 'Hide until next time',
+      onclick: () => { sinceSummary = null; showSince(); },
+    }, '✕'));
+  bar.hidden = false;
+}
+
 // ---------- app state / wiring ----------
 const params = new URLSearchParams(location.search);
 // The full tab is the bare page, so its address is just …/fantasy-sweat.html; the toolbar popup
@@ -1901,6 +2009,7 @@ function render() {
   const scoped = scopeToLeague(model, selectedLeagues);
   lastPlays = latestPlays(scoped); // each player's latest scoring play, for the rows drawn below
 
+  showSince();
   $('#leagues').replaceChildren(...cardOrder(model.leagues).map(leagueCard));
   if (!model.leagues.length) {
     $('#leagues').replaceChildren(h('div', { class: 'status' }, full.leagues.length
@@ -1949,6 +2058,7 @@ async function refresh() {
     current = data;
     fillWeeks(current.state.week, current.week);
     setStatus('');
+    await trackLastLook(current);
     render();
     loadPlays(); // after the main view, so plays never hold it up
   } catch (e) {
