@@ -1777,6 +1777,9 @@ function lookSummary(prev, now) {
 }
 
 async function trackLastLook(data) {
+  // A window behind another one, or a full tab in the background, keeps refreshing but nobody's reading
+  // it — so it doesn't count as looking, and must not keep the saved snapshot fresh.
+  if (document.hidden) return;
   const snap = lookSnapshot(data);
   if (!Object.keys(snap.leagues).length) return;
   const prev = await store.get('lastLook');
@@ -1786,6 +1789,14 @@ async function trackLastLook(data) {
   }
   await store.set('lastLook', snap);
 }
+
+// Coming back to a tab or window that was in the background counts as a new look, so work out what
+// moved while it sat there.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !current) return;
+  sinceChecked = false;
+  trackLastLook(current).then(render);
+});
 
 // The bar above the league cards. ✕ puts it away until the next time you open Fantasy Sweat.
 function showSince() {
