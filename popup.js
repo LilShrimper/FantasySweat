@@ -643,6 +643,15 @@ function sleeperLiveProj(cur, proj, secs) {
   return base + (1 - left) * (ceiling - base);
 }
 
+// A player's projection as it stands: before kickoff the pre-game number, during his game Sleeper's
+// blend of it with what he's actually doing, and his real points once the game is over. `noSchedule`
+// means the scoreboard didn't load, so nobody has kicked off as far as we know.
+function liveProj(pts, proj, game, noSchedule) {
+  const secs = !game && noSchedule ? 3600 : secondsLeft(game);
+  const v = sleeperLiveProj(pts, proj, secs);
+  return Number.isFinite(v) ? v : proj; // no game at all (a bye): leave the pre-game number alone
+}
+
 // Standard normal CDF (Abramowitz–Stegun erf approximation).
 function normalCdf(z) {
   const t = 1 / (1 + 0.3275911 * Math.abs(z) / Math.SQRT2);
@@ -686,6 +695,7 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
     pl.rank = ranks?.map[pl.pid] ?? null;
     pl.game = games[pl.info.team] || null;
     pl.verdict = pl.net > 0 ? 'cheer' : pl.net < 0 ? 'boo' : 'hedge';
+    for (const l of pl.legs) l.projLive = liveProj(l.pts, l.proj, pl.game, noSchedule);
     pl.projShown = headlineProj(pl.legs);
     pl.ptsShown = headlinePts(pl.legs);
   }
@@ -699,7 +709,10 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
         if (!pid) return { pid, slot };
         const info = playerInfo(pid, proj, dump, extraInfo);
         const pj = s.projMap ? (s.projMap[pid] ?? 0) : leagueProj(proj[pid]?.stats, ld.league.scoring_settings);
-        return { pid, slot, info, rank: ranks?.map[pid] ?? null, game: games[info.team] || null, pts: s.m.players_points?.[pid] ?? 0, proj: pj, src: ptsSrc(ld, s.m, pid), lid: ld.league.league_id };
+        const game = games[info.team] || null;
+        const pts = s.m.players_points?.[pid] ?? 0;
+        return { pid, slot, info, rank: ranks?.map[pid] ?? null, game, pts, proj: pj,
+          projLive: liveProj(pts, pj, game, noSchedule), src: ptsSrc(ld, s.m, pid), lid: ld.league.league_id };
       });
     }
   }
@@ -1033,8 +1046,9 @@ function headline(values) {
 }
 const headlinePts = (legs) => headline(legs.map((l) => l.pts));
 // Projections are worked out from each league's scoring too, so they drift apart the same way.
-const headlineProj = (legs) => headline(legs.map((l) => l.proj));
-const legProjVary = (legs) => new Set(legs.map((l) => Math.round(l.proj * 100))).size > 1;
+const projOf = (l) => l.projLive ?? l.proj;
+const headlineProj = (legs) => headline(legs.map(projOf));
+const legProjVary = (legs) => new Set(legs.map((l) => Math.round(projOf(l) * 100))).size > 1;
 
 function playerRow(pl, { showGame = false } = {}) {
   const g = pl.game;
@@ -1042,7 +1056,7 @@ function playerRow(pl, { showGame = false } = {}) {
   // projects. Projections nearly always differ a little, so they never go on the chips.
   const perLeague = (label, pick) => `\n${label}${pl.legs.map((l) => `${leagueTag(l.ld.league)}: ${fmt2(pick(l))}`).join(' · ')}`;
   const byLeague = (legPtsVary(pl.legs) ? perLeague('', (l) => l.pts) : '')
-    + (legProjVary(pl.legs) ? perLeague('proj ', (l) => l.proj) : '');
+    + (legProjVary(pl.legs) ? perLeague('proj ', projOf) : '');
   const box = ptsBox(g, pl.info, `Live fantasy points${srcNote(pl.legs.map((l) => l.src))}`);
   box.title += byLeague; // after the red-zone note ptsBox adds, so the list of leagues reads last
   // Only the leagues whose number isn't the one on the row carry it, so a player scored the same
@@ -1289,7 +1303,7 @@ function rosterRow(r) {
         h('span', null, gameLine(g, r.info.team)))),
     h('div', { class: box.class },
       h('span', { class: 'v', title: box.title }, fmt2(r.pts)),
-      h('span', { class: 'p' }, `proj ${fmt2(r.proj)}`)));
+      h('span', { class: 'p', title: `Pre-game projection: ${fmt2(r.proj)}` }, `proj ${fmt2(projOf(r))}`)));
 }
 
 // The roster of the team clicked on a league card. Redrawn on every refresh while it's open.
@@ -1518,11 +1532,11 @@ function renderBench(model) {
   const leagues = model.leagues.filter((ld) => ld.me?.roster
     && (!selectedLeagues.length || selectedLeagues.includes(ld.league.league_id)));
   if (!leagues.length) return emptyFiltered('No rosters loaded yet.');
-  const sortValue = (r) => (r.game && r.game.state !== 'pre' ? r.pts : r.proj);
-  const total = (list, key) => list.reduce((t, r) => t + (r[key] || 0), 0);
+  const sortValue = (r) => (r.game && r.game.state !== 'pre' ? r.pts : projOf(r));
+  const total = (list, key) => list.reduce((t, r) => t + ((key === 'proj' ? projOf(r) : r[key]) || 0), 0);
   const cards = leagues.map((ld) => {
     const all = ld.me.roster.filter((r) => r.pid && BENCH_SLOTS.includes(r.slot));
-    const shown = all.filter((r) => matchesFilter(r.game)).sort((a, b) => sortValue(b) - sortValue(a) || b.proj - a.proj);
+    const shown = all.filter((r) => matchesFilter(r.game)).sort((a, b) => sortValue(b) - sortValue(a) || projOf(b) - projOf(a));
     return h('div', { class: 'game bench-card', style: `--lc:${ld.color}` },
       h('div', { class: 'g-head' },
         h('div', null,

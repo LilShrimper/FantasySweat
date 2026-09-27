@@ -22,6 +22,7 @@ const NAMES = [
   'sittingLine', 'sittingStarters',
   'lookSummary', 'lookSnapshot', 'agoText', 'sinceParts', 'sinceClass',
   'headline', 'headlinePts', 'headlineProj', 'legPtsVary', 'legProjVary', 'samePts',
+  'liveProj', 'sleeperLiveProj',
 ];
 const EXPORTS = `
 globalThis.__api = {

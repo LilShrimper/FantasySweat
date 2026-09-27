@@ -349,3 +349,18 @@ test('projections lead the same way as points', () => {
   assert.equal(api.legProjVary(legs(9.9, 9.9)), false);
   assert.equal(api.legProjVary(legs(9.9, 10.63)), true);
 });
+
+test('a projection follows the game: pre-game, then Sleeper\'s blend, then his real points', () => {
+  const pre = { state: 'pre' }, half = { state: 'in', period: 2, clock: 731 }, done = { state: 'post' };
+  // Before kickoff it's untouched.
+  assert.equal(api.liveProj(0, 5.8, pre, false), 5.8);
+  // Reichard at MIN @ TB, Q2 with 42.2 minutes left: 6 so far against a 5.8 pre-game projection.
+  // Sleeper showed 8.97 for exactly this state.
+  assert.ok(Math.abs(api.liveProj(6, 5.8, half, false) - 8.97) < 0.005);
+  // Once his game is over the projection is just what he scored.
+  assert.equal(api.liveProj(7.3, 10.81, done, false), 7.3);
+  // On a bye he has no game, so there's nothing to blend with.
+  assert.equal(api.liveProj(0, 9.4, null, false), 9.4);
+  // Scoreboard didn't load: treat everyone as not started rather than as finished at 0.
+  assert.equal(api.liveProj(0, 9.4, null, true), 9.4);
+});
