@@ -1792,13 +1792,9 @@ function lookSummary(prev, now) {
   return { away, leagues: moved };
 }
 
-// "LS +12.4 / +3.1 · IJF +6.2 / +6.1" — your change, then your opponent's, per league. The rest are
-// counted, and all of them are spelled out in the hover text. Two fit a popup; the full tab holds more.
-const SINCE_SHOWN = 2;
-function sinceParts(summary, tagFor, max = SINCE_SHOWN) {
-  const rows = summary.leagues.slice(0, max).map((l) => ({ tag: tagFor(l.id), me: l.me, opp: l.opp }));
-  return { rows, more: summary.leagues.length - rows.length };
-}
+// "LS +12.4 / +3.1 · IJF +6.2 / +6.1" — your change, then your opponent's, per league. Every league
+// that moved is listed; the bar shows two lines of them and ▾ opens the rest (see showSince).
+const sinceParts = (summary, tagFor) => summary.leagues.map((l) => ({ tag: tagFor(l.id), me: l.me, opp: l.opp }));
 // Colored the way the rest of the app is: points you gained are green, points against you are red.
 const sinceClass = (n, forYou) => (!n ? '' : (n > 0) === forYou ? 'good' : 'bad');
 
@@ -1824,7 +1820,9 @@ document.addEventListener('visibilitychange', () => {
   trackLastLook(current).then(render);
 });
 
-// The bar above the league cards. ✕ puts it away until the next time you open Fantasy Sweat.
+// The bar above the league cards: up to two lines of leagues, ▾ to open the rest when they don't fit,
+// and ✕ to put it away until the next time you open Fantasy Sweat.
+let sinceOpen = false;
 function showSince() {
   const bar = $('#sinceBar');
   if (!sinceSummary) {
@@ -1836,24 +1834,38 @@ function showSince() {
   const tagFor = (id) => { const ld = leagueOf(id); return ld ? leagueTag(ld.league) : '?'; };
   const detail = ['Your change / your opponent’s, per league:', ...s.leagues
     .map((l) => `${leagueOf(l.id)?.league.name || 'League'}: you ${signed(l.me)}, opponent ${signed(l.opp)} · win ${pct(l.wasWin)} → ${pct(l.win)}`)].join('\n');
-  // The popup is narrow, so it names fewer leagues than the full tab; the hover has them all.
-  const { rows, more } = sinceParts(s, tagFor, MODE === 'popup' ? SINCE_SHOWN : SINCE_SHOWN + 2);
-  const cells = rows.flatMap((r, i) => [
+  const cells = sinceParts(s, tagFor).flatMap((r, i) => [
     i ? h('span', { class: 'since-dot' }, ' · ') : null,
     h('span', { class: 'since-lg' }, `${r.tag} `),
     h('span', { class: sinceClass(r.me, true) }, signed(r.me)),
     ' / ',
     h('span', { class: sinceClass(r.opp, false) }, signed(r.opp)),
   ].filter(Boolean));
-  bar.replaceChildren(
-    h('span', { class: 'since-text', title: detail },
-      `Since your last look (${agoText(s.away)}): `, ...cells,
-      more > 0 ? h('span', { class: 'since-more' }, ` · +${more} more`) : null),
-    h('button', {
-      type: 'button', class: 'ghost x', title: 'Hide until next time',
-      onclick: () => { sinceSummary = null; showSince(); },
-    }, '✕'));
+  const clamp = h('span', { class: 'since-clamp' }, `Since your last look (${agoText(s.away)}): `, ...cells);
+  const text = h('span', { class: 'since-text', title: detail }, clamp);
+  const expand = h('button', {
+    type: 'button', class: 'ghost x since-toggle', hidden: true,
+    title: sinceOpen ? 'Show fewer' : 'Show every league',
+    onclick: () => { sinceOpen = !sinceOpen; showSince(); },
+  }, sinceOpen ? '▴' : '▾');
+  bar.classList.toggle('open', sinceOpen);
+  bar.replaceChildren(text, expand, h('button', {
+    type: 'button', class: 'ghost x', title: 'Hide until next time',
+    onclick: () => { sinceSummary = null; showSince(); },
+  }, '✕'));
   bar.hidden = false;
+  // ▾ only when two lines aren't enough for them all — measured, since it depends on the window width.
+  expand.hidden = !sinceOpen && !overflowsClamp(bar, clamp);
+}
+
+// Does the text need more than the two lines it's clamped to? A clamped box reports its clamped height
+// as its full height, so it's opened for the measurement and closed straight back.
+function overflowsClamp(bar, el) {
+  const twoLines = el.clientHeight;
+  bar.classList.add('open');
+  const full = el.clientHeight;
+  bar.classList.remove('open');
+  return full > twoLines + 1;
 }
 
 // ---------- app state / wiring ----------
