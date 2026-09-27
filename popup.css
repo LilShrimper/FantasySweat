@@ -334,6 +334,10 @@ body.full .games { grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
   background: color-mix(in srgb, var(--lc) 22%, transparent); color: var(--text);
   border: 1px solid color-mix(in srgb, var(--lc) 60%, transparent);
 }
+/* A league's own points inside its chip, for the leagues that don't score a player the same as the
+   number on his row. Small and tight, so it costs as little width (and so as few wrapped lines) as
+   it can. */
+.chip-pts { margin-left: 3px; font-size: 9px; font-weight: 600; font-variant-numeric: tabular-nums; opacity: 0.85; }
 .chip.for::before { content: "+"; color: var(--cheer); }
 .chip.against::before { content: "\2212"; color: var(--boo); }
 

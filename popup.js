@@ -643,6 +643,15 @@ function sleeperLiveProj(cur, proj, secs) {
   return base + (1 - left) * (ceiling - base);
 }
 
+// A player's projection as it stands: before kickoff the pre-game number, during his game Sleeper's
+// blend of it with what he's actually doing, and his real points once the game is over. `noSchedule`
+// means the scoreboard didn't load, so nobody has kicked off as far as we know.
+function liveProj(pts, proj, game, noSchedule) {
+  const secs = !game && noSchedule ? 3600 : secondsLeft(game);
+  const v = sleeperLiveProj(pts, proj, secs);
+  return Number.isFinite(v) ? v : proj; // no game at all (a bye): leave the pre-game number alone
+}
+
 // Standard normal CDF (Abramowitz–Stegun erf approximation).
 function normalCdf(z) {
   const t = 1 / (1 + 0.3275911 * Math.abs(z) / Math.SQRT2);
@@ -686,8 +695,9 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
     pl.rank = ranks?.map[pl.pid] ?? null;
     pl.game = games[pl.info.team] || null;
     pl.verdict = pl.net > 0 ? 'cheer' : pl.net < 0 ? 'boo' : 'hedge';
-    pl.projShown = Math.max(...pl.legs.map((l) => l.proj));
-    pl.ptsShown = Math.max(...pl.legs.map((l) => l.pts));
+    for (const l of pl.legs) l.projLive = liveProj(l.pts, l.proj, pl.game, noSchedule);
+    pl.projShown = headlineProj(pl.legs);
+    pl.ptsShown = headlinePts(pl.legs);
   }
 
   // Full rosters for the roster panel: who each player is, his game, and his points and projection
@@ -699,7 +709,10 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
         if (!pid) return { pid, slot };
         const info = playerInfo(pid, proj, dump, extraInfo);
         const pj = s.projMap ? (s.projMap[pid] ?? 0) : leagueProj(proj[pid]?.stats, ld.league.scoring_settings);
-        return { pid, slot, info, rank: ranks?.map[pid] ?? null, game: games[info.team] || null, pts: s.m.players_points?.[pid] ?? 0, proj: pj, src: ptsSrc(ld, s.m, pid), lid: ld.league.league_id };
+        const game = games[info.team] || null;
+        const pts = s.m.players_points?.[pid] ?? 0;
+        return { pid, slot, info, rank: ranks?.map[pid] ?? null, game, pts, proj: pj,
+          projLive: liveProj(pts, pj, game, noSchedule), src: ptsSrc(ld, s.m, pid), lid: ld.league.league_id };
       });
     }
   }
@@ -1003,16 +1016,55 @@ function injBadge(inj) {
 }
 
 // A league's tag chip for one leg of a player: + if he's your starter there, − if your opponent's.
-const legChip = (leg, extra = '') => h('span', {
+// `shown` (already formatted) puts a number inside the chip, for when the same player or play is
+// worth different points in different leagues.
+const legChip = (leg, extra = '', shown = null) => h('span', {
   class: `chip ${leg.side > 0 ? 'for' : 'against'}`,
   style: `--lc:${leg.ld.color}`,
   title: `${leg.side > 0 ? 'Your starter' : `Started by ${teamLabel(leg.ld, leg.ld.opp)}`} in ${leg.ld.league.name}${extra}`,
-}, leagueTag(leg.ld.league));
+}, leagueTag(leg.ld.league), shown != null ? h('span', { class: 'chip-pts' }, shown) : null);
+
+// True when a player is worth different points in different leagues (PPR vs standard, a bonus for
+// long field goals, and so on), so one number on his row would be right for only some of them.
+const legPtsVary = (legs) => new Set(legs.map((l) => Math.round(l.pts * 100))).size > 1;
+const samePts = (a, b) => Math.round(a * 100) === Math.round(b * 100);
+
+// The number to lead with when a player's leagues don't agree: the one most of them give — the
+// smaller swing when they're split evenly — so nothing quotes his best league and calls it his
+// total. The leagues that don't match say so on their own chips.
+function headline(values) {
+  const groups = new Map(); // a value (to the cent) → how many leagues give it
+  for (const v of values) {
+    const key = Math.round(v * 100);
+    const g = groups.get(key);
+    if (g) g.n++;
+    else groups.set(key, { v, n: 1 });
+  }
+  let best = null;
+  for (const g of groups.values()) if (!best || g.n > best.n || (g.n === best.n && Math.abs(g.v) < Math.abs(best.v))) best = g;
+  return best ? best.v : 0;
+}
+const headlinePts = (legs) => headline(legs.map((l) => l.pts));
+// Projections are worked out from each league's scoring too, so they drift apart the same way.
+const projOf = (l) => l.projLive ?? l.proj;
+const headlineProj = (legs) => headline(legs.map(projOf));
+const legProjVary = (legs) => new Set(legs.map((l) => Math.round(projOf(l) * 100))).size > 1;
 
 function playerRow(pl, { showGame = false } = {}) {
   const g = pl.game;
+  // When his leagues disagree, the hover spells out what each one scores him, and what each one
+  // projects. Projections nearly always differ a little, so they never go on the chips.
+  const perLeague = (label, pick) => `\n${label}${pl.legs.map((l) => `${leagueTag(l.ld.league)}: ${fmt2(pick(l))}`).join(' · ')}`;
+  const byLeague = (legPtsVary(pl.legs) ? perLeague('', (l) => l.pts) : '')
+    + (legProjVary(pl.legs) ? perLeague('proj ', projOf) : '');
   const box = ptsBox(g, pl.info, `Live fantasy points${srcNote(pl.legs.map((l) => l.src))}`);
-  const chips = pl.legs.map((l) => legChip(l));
+  box.title += byLeague; // after the red-zone note ptsBox adds, so the list of leagues reads last
+  // Only the leagues whose number isn't the one on the row carry it, so a player scored the same
+  // everywhere (nearly all of them) looks exactly as he did.
+  const chips = pl.legs.map((l) => {
+    const off = !samePts(l.pts, pl.ptsShown);
+    return legChip(l, off ? `: ${fmt2(l.pts)} pts under its scoring` : '', off ? fmt2(l.pts) : null);
+  });
   const gameText = showGame ? gameLine(g, pl.info.team) : null;
   return h('div', { class: 'pl bd-open', ...breakdownHandlers(pl.pid, pl.legs.map((l) => l.ld.league.league_id)) },
     h('div', { class: 'pl-main' },
@@ -1026,7 +1078,7 @@ function playerRow(pl, { showGame = false } = {}) {
     h('div', { class: box.class },
       h('span', { class: 'v', title: box.title }, fmt2(pl.ptsShown)),
       lastPlays.has(pl.pid) ? gainTag(pl, lastPlays.get(pl.pid)) : null,
-      h('span', { class: 'p' }, `proj ${fmt2(pl.projShown)}`)));
+      h('span', { class: 'p', title: box.title }, `proj ${fmt2(pl.projShown)}`)));
 }
 
 // His latest scoring play beside his points ("+6.5"): green when it helped you, red when it hurt,
@@ -1251,7 +1303,7 @@ function rosterRow(r) {
         h('span', null, gameLine(g, r.info.team)))),
     h('div', { class: box.class },
       h('span', { class: 'v', title: box.title }, fmt2(r.pts)),
-      h('span', { class: 'p' }, `proj ${fmt2(r.proj)}`)));
+      h('span', { class: 'p', title: `Pre-game projection: ${fmt2(r.proj)}` }, `proj ${fmt2(projOf(r))}`)));
 }
 
 // The roster of the team clicked on a league card. Redrawn on every refresh while it's open.
@@ -1480,11 +1532,11 @@ function renderBench(model) {
   const leagues = model.leagues.filter((ld) => ld.me?.roster
     && (!selectedLeagues.length || selectedLeagues.includes(ld.league.league_id)));
   if (!leagues.length) return emptyFiltered('No rosters loaded yet.');
-  const sortValue = (r) => (r.game && r.game.state !== 'pre' ? r.pts : r.proj);
-  const total = (list, key) => list.reduce((t, r) => t + (r[key] || 0), 0);
+  const sortValue = (r) => (r.game && r.game.state !== 'pre' ? r.pts : projOf(r));
+  const total = (list, key) => list.reduce((t, r) => t + ((key === 'proj' ? projOf(r) : r[key]) || 0), 0);
   const cards = leagues.map((ld) => {
     const all = ld.me.roster.filter((r) => r.pid && BENCH_SLOTS.includes(r.slot));
-    const shown = all.filter((r) => matchesFilter(r.game)).sort((a, b) => sortValue(b) - sortValue(a) || b.proj - a.proj);
+    const shown = all.filter((r) => matchesFilter(r.game)).sort((a, b) => sortValue(b) - sortValue(a) || projOf(b) - projOf(a));
     return h('div', { class: 'game bench-card', style: `--lc:${ld.color}` },
       h('div', { class: 'g-head' },
         h('div', null,
@@ -1605,7 +1657,8 @@ const playWhen = (play) => {
 };
 
 // One play's fantasy points for the players in it, split into your starters and your opponents'
-// ({ for, against }). Each league scores it its own way; the biggest swing across leagues is kept.
+// ({ for, against }). Each league scores it its own way, so the number kept is the one most of them
+// give it, same as a player's row; each league's own is on `legs`.
 function scorePlay(play, byPid, defs) {
   const items = { for: [], against: [] };
   const add = (pl, stats) => {
@@ -1615,8 +1668,8 @@ function scorePlay(play, byPid, defs) {
       const bucket = items[leg.side > 0 ? 'for' : 'against'];
       let it = bucket.find((x) => x.pl === pl);
       if (!it) bucket.push((it = { pl, pts, legs: [] }));
-      if (Math.abs(pts) > Math.abs(it.pts)) it.pts = pts; // biggest swing across leagues
       it.legs.push({ leg, pts });
+      it.pts = headlinePts(it.legs);
     }
   };
   // One entry per player, since a play can list him more than once (e.g. a fumble on a reception).
@@ -1740,7 +1793,9 @@ function playItem(it, side) {
         h('span', { class: 'lp-name' }, x.pl.info.name,
           x.pl.info.num != null && x.pl.info.num !== '' ? h('span', { class: 'num' }, ` #${x.pl.info.num}`) : null),
         h('span', { class: 'pj' }, x.pl.info.pos),
-        x.legs.map((l) => legChip(l.leg, `: ${signed(l.pts)}`)));
+        // Same as a player's row: only the leagues that don't score the play the way the number
+        // beside it says carry their own.
+        x.legs.map((l) => legChip(l.leg, `: ${signed(l.pts)}`, samePts(l.pts, x.pts) ? null : signed(l.pts))));
     }),
     h('div', { class: 'lp-desc' },
       play.scoring ? h('span', { class: 'lp-badge' }, /touchdown/i.test(play.desc) ? 'TD' : 'SCORE') : null,
@@ -1907,8 +1962,8 @@ function scopeToLeague(model, leagueIds, { keepAll = false } = {}) {
       net,
       impact: legs.reduce((s, l) => s + l.side * Math.max(l.proj, 1), 0),
       verdict: net > 0 ? 'cheer' : net < 0 ? 'boo' : 'hedge',
-      projShown: Math.max(...legs.map((l) => l.proj)),
-      ptsShown: Math.max(...legs.map((l) => l.pts)),
+      projShown: headlineProj(legs),
+      ptsShown: headlinePts(legs),
     });
   }
   const games = model.games
