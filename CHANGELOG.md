@@ -4,6 +4,11 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### New
+- **Since your last look:** open Fantasy Sweat after a while and a bar at the top says what moved, e.g. "Since your last look (2h ago): you +18.6, opponents +9.2 · 1 of 2 matchups looking better". Hover for each league's own change and win chance; ✕ puts it away until next time. It only appears after at least 10 minutes away, for the week you were on, and only when something actually changed.
+
 ## 1.0.16 — 2026-09-27
 
 ### Changed

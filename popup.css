@@ -148,6 +148,14 @@ button, select, input { font: inherit; color: inherit; }
   border-radius: 9px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--panel)); font-size: 12.5px;
 }
 .update-bar[hidden] { display: none; }
+/* "Since your last look" — quieter than the update bar, and dismissed with the ✕ */
+.since-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; padding: 6px 10px;
+  border-radius: 9px; border: 1px solid var(--line); background: var(--panel); font-size: 12px; color: var(--muted);
+}
+.since-bar[hidden] { display: none; }
+.since-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: help; }
+.since-bar .x { flex: none; padding: 2px 7px; font-size: 11px; color: var(--muted); }
 .update-now { flex: none; padding: 5px 11px; border-radius: 7px; border: 0; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
 .app-version .update-note { color: var(--text); font-weight: 600; }
 .app-version .update-now { padding: 2px 8px; font-size: 11px; }

@@ -1729,6 +1729,92 @@ function playItem(it, side) {
     h('div', { class: 'lp-when', title: clockTime ? `Shown on the feed at ${clockTime}` : null }, when));
 }
 
+// ---------- what changed since your last look ----------
+// Every refresh saves where each matchup stood, so the saved copy is from the last moment Fantasy Sweat
+// was actually in front of you. Opening it again later, a bar at the top says what moved while you were
+// away. Only worked out once per session, and only for the week you were looking at.
+const LAST_LOOK_GAP_MS = 10 * 60_000; // anything shorter isn't "since last time", it's just now
+let sinceSummary = null;
+let sinceChecked = false;
+
+const round2 = (n) => Math.round(n * 100) / 100;
+const pct = (p) => `${Math.round((p ?? 0.5) * 100)}%`;
+const agoText = (ms) => {
+  const mins = Math.round(ms / 60_000);
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  return hrs < 36 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
+};
+
+const lookSnapshot = (data) => ({
+  at: Date.now(),
+  week: data.week,
+  leagues: Object.fromEntries((data.model?.leagues || []).filter((ld) => ld.me && ld.opp)
+    .map((ld) => [ld.league.league_id, { me: ld.me.m.points, opp: ld.opp.m.points, win: ld.winPct ?? 0.5 }])),
+});
+
+// What moved between two snapshots, per league and in total. null when there's nothing worth saying:
+// no earlier look, a different week, too little time, or nothing changed.
+function lookSummary(prev, now) {
+  if (!prev?.leagues || prev.week !== now.week) return null;
+  const away = now.at - (prev.at || 0);
+  if (away < LAST_LOOK_GAP_MS) return null;
+  const moved = [];
+  for (const [id, was] of Object.entries(prev.leagues)) {
+    const is = now.leagues[id];
+    if (!is) continue; // a league you've since hidden
+    const l = { id, me: round2(is.me - was.me), opp: round2(is.opp - was.opp), win: is.win, wasWin: was.win };
+    if (l.me || l.opp || pct(l.win) !== pct(l.wasWin)) moved.push(l);
+  }
+  if (!moved.length) return null;
+  return {
+    away,
+    leagues: moved,
+    me: round2(moved.reduce((t, l) => t + l.me, 0)),
+    opp: round2(moved.reduce((t, l) => t + l.opp, 0)),
+    better: moved.filter((l) => (l.win ?? 0) > (l.wasWin ?? 0) && pct(l.win) !== pct(l.wasWin)).length,
+  };
+}
+
+async function trackLastLook(data) {
+  const snap = lookSnapshot(data);
+  if (!Object.keys(snap.leagues).length) return;
+  const prev = await store.get('lastLook');
+  if (!sinceChecked) {
+    sinceChecked = true;
+    sinceSummary = lookSummary(prev, snap);
+  }
+  await store.set('lastLook', snap);
+}
+
+// The bar above the league cards. ✕ puts it away until the next time you open Fantasy Sweat.
+function showSince() {
+  const bar = $('#sinceBar');
+  if (!sinceSummary) {
+    bar.hidden = true;
+    return;
+  }
+  const s = sinceSummary;
+  const label = (id) => {
+    const ld = current?.model.leagues.find((x) => x.league.league_id === id);
+    return ld ? ld.league.name : 'League';
+  };
+  const detail = s.leagues
+    .map((l) => `${label(l.id)}: you ${signed(l.me)}, opponent ${signed(l.opp)} · win ${pct(l.wasWin)} → ${pct(l.win)}`)
+    .join('\n');
+  const tail = s.leagues.length > 1
+    ? `${s.better} of ${s.leagues.length} matchups looking better`
+    : `win ${pct(s.leagues[0].wasWin)} → ${pct(s.leagues[0].win)}`;
+  bar.replaceChildren(
+    h('span', { class: 'since-text', title: detail },
+      `Since your last look (${agoText(s.away)}): you ${signed(s.me)}, opponents ${signed(s.opp)} · ${tail}`),
+    h('button', {
+      type: 'button', class: 'ghost x', title: 'Hide until next time',
+      onclick: () => { sinceSummary = null; showSince(); },
+    }, '✕'));
+  bar.hidden = false;
+}
+
 // ---------- app state / wiring ----------
 const params = new URLSearchParams(location.search);
 // The full tab is the bare page, so its address is just …/fantasy-sweat.html; the toolbar popup
@@ -1882,6 +1968,7 @@ function render() {
   const scoped = scopeToLeague(model, selectedLeagues);
   lastPlays = latestPlays(scoped); // each player's latest scoring play, for the rows drawn below
 
+  showSince();
   $('#leagues').replaceChildren(...cardOrder(model.leagues).map(leagueCard));
   if (!model.leagues.length) {
     $('#leagues').replaceChildren(h('div', { class: 'status' }, full.leagues.length
@@ -1930,6 +2017,7 @@ async function refresh() {
     current = data;
     fillWeeks(current.state.week, current.week);
     setStatus('');
+    await trackLastLook(current);
     render();
     loadPlays(); // after the main view, so plays never hold it up
   } catch (e) {
