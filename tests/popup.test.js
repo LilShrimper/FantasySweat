@@ -137,9 +137,11 @@ test('what changed since your last look', () => {
   });
   const s = api.lookSummary(before, after);
   assert.equal(s.leagues.length, 2);          // the matchup that didn't move is left out
-  assert.equal(s.me, 18.6);
-  assert.equal(s.opp, 9.2);
-  assert.equal(s.better, 1);                  // L1 improved, L2 slipped
+  assert.equal(s.leagues[0].id, 'L1');        // biggest swing first (+12.4 vs +3.1)
+  assert.equal(s.leagues[0].me, 12.4);
+  assert.equal(s.leagues[0].opp, 3.1);
+  assert.equal(s.leagues[1].id, 'L2');
+  assert.equal(s.leagues[1].me, 6.2);
   assert.equal(api.agoText(s.away), '2h ago');
 
   // Nothing to say: no earlier look, a different week, too soon, or no change at all.
@@ -151,7 +153,22 @@ test('what changed since your last look', () => {
   // A league hidden since the last look is skipped rather than counted as a change.
   const narrowed = api.lookSummary(before, snap(after.at, 3, { L1: after.leagues.L1 }));
   assert.equal(narrowed.leagues.length, 1);
-  assert.equal(narrowed.me, 12.4);
+  assert.equal(narrowed.leagues[0].me, 12.4);
+});
+
+test('the bar names each league rather than adding them together', () => {
+  const tagFor = (id) => ({ L1: 'LS', L2: 'IJF', L3: 'LFL', L4: 'GLG' })[id];
+  const summary = (n) => ({ away: 0, leagues: [
+    { id: 'L1', me: 12.4, opp: 3.1 }, { id: 'L2', me: 6.2, opp: 6.1 },
+    { id: 'L3', me: -2, opp: 4 }, { id: 'L4', me: 0.5, opp: 0 },
+  ].slice(0, n) });
+  const parts = (n, max) => [...api.sinceParts(summary(n), tagFor, max)];
+  assert.deepEqual(parts(1), ['LS +12.4 / +3.1']);
+  assert.deepEqual(parts(2), ['LS +12.4 / +3.1', 'IJF +6.2 / +6.1']);
+  // Beyond what fits, the rest are counted — the hover still lists them all.
+  assert.deepEqual(parts(4), ['LS +12.4 / +3.1', 'IJF +6.2 / +6.1', '+2 more']);
+  // A wider window (the full tab) names more of them.
+  assert.equal(parts(4, 4).length, 4);
 });
 
 test('how long you were away reads plainly', () => {

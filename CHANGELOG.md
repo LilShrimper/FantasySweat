@@ -7,7 +7,7 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 ## Unreleased
 
 ### New
-- **Since your last look:** open Fantasy Sweat after a while and a bar at the top says what moved, e.g. "Since your last look (2h ago): you +18.6, opponents +9.2 · 1 of 2 matchups looking better". Hover for each league's own change and win chance; ✕ puts it away until next time. It only appears after at least 10 minutes away, for the week you were on, and only when something actually changed. A window sitting in the background doesn't count as looking, so a full tab left open behind other tabs still gets the bar when you come back to it.
+- **Since your last look:** open Fantasy Sweat after a while and a bar at the top says what moved, league by league: "Since your last look (1h ago): LS +12.4 / +3.1 · LFL +2 / +9.4 · +2 more" — your change, then your opponent's, biggest swing first. Hover for every league by name, with its win chance before and after; ✕ puts it away until next time. It only appears after at least 10 minutes away, for the week you were on, and only when something actually changed. A window sitting in the background doesn't count as looking, so a full tab left open behind other tabs still gets the bar when you come back to it.
 
 ## 1.0.16 — 2026-09-27
 

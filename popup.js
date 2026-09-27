@@ -1767,13 +1767,19 @@ function lookSummary(prev, now) {
     if (l.me || l.opp || pct(l.win) !== pct(l.wasWin)) moved.push(l);
   }
   if (!moved.length) return null;
-  return {
-    away,
-    leagues: moved,
-    me: round2(moved.reduce((t, l) => t + l.me, 0)),
-    opp: round2(moved.reduce((t, l) => t + l.opp, 0)),
-    better: moved.filter((l) => (l.win ?? 0) > (l.wasWin ?? 0) && pct(l.win) !== pct(l.wasWin)).length,
-  };
+  // Biggest swing first: leagues score differently, so the matchups that moved most are what matter,
+  // not a total across them.
+  moved.sort((a, b) => Math.abs(b.me - b.opp) - Math.abs(a.me - a.opp));
+  return { away, leagues: moved };
+}
+
+// "LS +12.4 / +3.1 · IJF +6.2 / +6.1" — your change, then your opponent's, per league. The rest are
+// counted, and all of them are spelled out in the hover text. Two fit a popup; the full tab holds more.
+const SINCE_SHOWN = 2;
+function sinceParts(summary, tagFor, max = SINCE_SHOWN) {
+  const shown = summary.leagues.slice(0, max).map((l) => `${tagFor(l.id)} ${signed(l.me)} / ${signed(l.opp)}`);
+  const rest = summary.leagues.length - shown.length;
+  return rest > 0 ? [...shown, `+${rest} more`] : shown;
 }
 
 async function trackLastLook(data) {
@@ -1806,19 +1812,15 @@ function showSince() {
     return;
   }
   const s = sinceSummary;
-  const label = (id) => {
-    const ld = current?.model.leagues.find((x) => x.league.league_id === id);
-    return ld ? ld.league.name : 'League';
-  };
-  const detail = s.leagues
-    .map((l) => `${label(l.id)}: you ${signed(l.me)}, opponent ${signed(l.opp)} · win ${pct(l.wasWin)} → ${pct(l.win)}`)
-    .join('\n');
-  const tail = s.leagues.length > 1
-    ? `${s.better} of ${s.leagues.length} matchups looking better`
-    : `win ${pct(s.leagues[0].wasWin)} → ${pct(s.leagues[0].win)}`;
+  const leagueOf = (id) => current?.model.leagues.find((x) => x.league.league_id === id);
+  const tagFor = (id) => { const ld = leagueOf(id); return ld ? leagueTag(ld.league) : '?'; };
+  const detail = ['Your change / your opponent’s, per league:', ...s.leagues
+    .map((l) => `${leagueOf(l.id)?.league.name || 'League'}: you ${signed(l.me)}, opponent ${signed(l.opp)} · win ${pct(l.wasWin)} → ${pct(l.win)}`)].join('\n');
+  // The popup is narrow, so it names fewer leagues than the full tab; the hover has them all.
+  const parts = sinceParts(s, tagFor, MODE === 'popup' ? SINCE_SHOWN : SINCE_SHOWN + 2);
   bar.replaceChildren(
     h('span', { class: 'since-text', title: detail },
-      `Since your last look (${agoText(s.away)}): you ${signed(s.me)}, opponents ${signed(s.opp)} · ${tail}`),
+      `Since your last look (${agoText(s.away)}): ${parts.join(' · ')}`),
     h('button', {
       type: 'button', class: 'ghost x', title: 'Hide until next time',
       onclick: () => { sinceSummary = null; showSince(); },
