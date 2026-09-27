@@ -162,14 +162,11 @@ test('the bar names each league rather than adding them together', () => {
     { id: 'L1', me: 12.4, opp: 3.1 }, { id: 'L2', me: 6.2, opp: 6.1 },
     { id: 'L3', me: -2, opp: 4 }, { id: 'L4', me: 0.5, opp: 0 },
   ].slice(0, n) });
-  const parts = (n, max) => { const p = api.sinceParts(summary(n), tagFor, max); return { rows: [...p.rows].map((r) => ({ ...r })), more: p.more }; };
-  assert.deepEqual(parts(1), { rows: [{ tag: 'LS', me: 12.4, opp: 3.1 }], more: 0 });
-  assert.deepEqual(parts(2).rows.map((r) => r.tag), ['LS', 'IJF']);
-  // Beyond what fits, the rest are counted — the hover still lists them all.
-  assert.equal(parts(4).more, 2);
-  // A wider window (the full tab) names more of them.
-  assert.equal(parts(4, 4).rows.length, 4);
-  assert.equal(parts(4, 4).more, 0);
+  const parts = (n) => [...api.sinceParts(summary(n), tagFor)].map((r) => ({ ...r }));
+  assert.deepEqual(parts(1), [{ tag: 'LS', me: 12.4, opp: 3.1 }]);
+  // Every league that moved is listed — the bar clamps to two lines and ▾ opens the rest.
+  assert.deepEqual(parts(4).map((r) => r.tag), ['LS', 'IJF', 'LFL', 'GLG']);
+  assert.deepEqual(parts(4)[2], { tag: 'LFL', me: -2, opp: 4 });
 });
 
 test('gains for you are green, gains against you are red', () => {

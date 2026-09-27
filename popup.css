@@ -150,11 +150,19 @@ button, select, input { font: inherit; color: inherit; }
 .update-bar[hidden] { display: none; }
 /* "Since your last look" — quieter than the update bar, and dismissed with the ✕ */
 .since-bar {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; padding: 6px 10px;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; padding: 6px 10px;
   border-radius: 9px; border: 1px solid var(--line); background: var(--panel); font-size: 12px; color: var(--muted);
 }
 .since-bar[hidden] { display: none; }
-.since-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: help; }
+/* Two lines of leagues at most, until ▾ opens the rest. The clamp lives on an inner element: a flex
+   item can't be a -webkit-box, so clamping the outer one does nothing. */
+.since-text { min-width: 0; flex: 1; cursor: help; line-height: 1.35; }
+.since-clamp {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
+.since-bar.open .since-clamp { display: block; overflow: visible; }
+.since-toggle { line-height: 1; }
+.since-toggle[hidden] { display: none; }
 .since-lg { color: var(--text); font-weight: 700; }
 .since-text .good { color: var(--cheer); font-weight: 700; font-variant-numeric: tabular-nums; }
 .since-text .bad { color: var(--boo); font-weight: 700; font-variant-numeric: tabular-nums; }
