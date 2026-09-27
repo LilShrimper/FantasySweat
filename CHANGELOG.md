@@ -4,6 +4,12 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### Fixed
+- **Live plays:** a D/ST play no longer shows the same league tag twice, and its points are the whole play instead of half of it. A sack-and-fumble that's worth 3 showed "+2" with two identical tags.
+- **Live plays:** a team's own defense is no longer credited with forcing a fumble when that team's player is the one who fumbled.
+
 ## 1.0.15 — 2026-09-26
 
 ### New
