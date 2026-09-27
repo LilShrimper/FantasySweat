@@ -59,4 +59,10 @@ fantasy-sweat.html   Page structure (popup, popout window and full tab all use i
 popup.css            Styles (dark and light themes)
 popup.js             Data loading, cheer/boo logic, win %, live plays, rendering
 icons/               Toolbar and store icons
+tests/               Checks on that logic — not part of the extension
 ```
+
+## Tests
+
+`npm test` (Node 22 or newer, no dependencies) checks the scoring, lineup warnings, formatting and the
+image allow-list. They run on every pull request. Nothing in `tests/` is included in the store upload.
