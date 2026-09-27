@@ -1499,6 +1499,9 @@ function slimPlay(p) {
     clock: mins != null ? `${mins}:${String(m.time_remaining_seconds ?? 0).padStart(2, '0')}` : '',
     desc: m.fantasy_description || m.description || '',
     scoring: !!m.is_scoring_play,
+    down: Number(m.down) || 0,               // 0 on kickoffs, extra points, …
+    dist: Number(m.distance) || 0,
+    spot: m.yard_line_territory && m.yard_line != null ? `${m.yard_line_territory} ${m.yard_line}` : '',
     stats: (p.play_stats || [])
       .map((s) => ({ pid: s.player?.player_id, team: s.player?.team, stats: s.stats || {} }))
       .filter((s) => s.pid),
@@ -1694,13 +1697,19 @@ function renderPlays(model) {
     h('div', { class: 'lp-note' }, `The latest ${PLAYS_SHOWN} fantasy-scoring plays for each side from games in progress, updating live. Team defenses count sacks, turnovers and TDs play by play; points-allowed changes aren’t tied to single plays.`));
 }
 
+// "1st & 10 · NYJ 46" — where the play started. Kickoffs and extra points have no down, so they
+// show just the spot (or nothing at all when the feed leaves it out).
+function downSpot(play) {
+  const ord = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th' }[play.down];
+  const down = ord && play.dist ? `${ord} & ${play.dist}` : ord || '';
+  return [down, play.spot].filter(Boolean).join(' · ');
+}
+
 function playItem(it, side) {
   const { play, game } = it;
-  const when = [
-    playWhen(play),
-    `${game.away} @ ${game.home}`,
-    play.t ? new Date(play.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : null,
-  ].filter(Boolean).join(' · ');
+  // The clock time moved to the hover text so the down and spot fit on one line in the popup.
+  const clockTime = play.t ? new Date(play.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+  const when = [playWhen(play), downSpot(play), `${game.away} @ ${game.home}`].filter(Boolean).join(' · ');
   return h('div', { class: 'lp' },
     it.players.map((x) => {
       const good = side === 'for' ? x.pts > 0 : x.pts < 0; // colored from your point of view
@@ -1709,14 +1718,15 @@ function playItem(it, side) {
           class: `lp-pts ${good ? 'good' : 'bad'}`,
           title: x.legs.map((l) => `${l.leg.ld.league.name}: ${signed(l.pts)}`).join('\n'),
         }, signed(x.pts)),
-        h('span', { class: 'lp-name' }, x.pl.info.name),
+        h('span', { class: 'lp-name' }, x.pl.info.name,
+          x.pl.info.num != null && x.pl.info.num !== '' ? h('span', { class: 'num' }, ` #${x.pl.info.num}`) : null),
         h('span', { class: 'pj' }, x.pl.info.pos),
         x.legs.map((l) => legChip(l.leg, `: ${signed(l.pts)}`)));
     }),
     h('div', { class: 'lp-desc' },
       play.scoring ? h('span', { class: 'lp-badge' }, /touchdown/i.test(play.desc) ? 'TD' : 'SCORE') : null,
       play.desc),
-    h('div', { class: 'lp-when' }, when));
+    h('div', { class: 'lp-when', title: clockTime ? `Shown on the feed at ${clockTime}` : null }, when));
 }
 
 // ---------- app state / wiring ----------
