@@ -4,14 +4,14 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
-## Unreleased
+## 1.0.16 — 2026-09-27
 
 ### Changed
-- **Live plays:** each player's jersey number shows next to his name, like the other tabs, and every play says the down and where it started, e.g. "Q2 13:39 · 1st & 10 · NYJ 46 · NYJ @ DET". The time the play reached the feed moved to the hover text, so the line still fits on one line in the popup.
+- **Live plays:** each player's jersey number shows next to his name, like the other tabs, and every play says the down and where it started, e.g. "Q2 13:39 · 1st & 10 · NYJ 46 · NYJ @ DET". The time the play reached the feed moved to the hover text, so the line still fits on one line in the popup. (#64)
 
 ### Fixed
-- **Live plays:** a D/ST play no longer shows the same league tag twice, and its points are the whole play instead of half of it. A sack-and-fumble that's worth 3 showed "+2" with two identical tags.
-- **Live plays:** a team's own defense is no longer credited with forcing a fumble when that team's player is the one who fumbled.
+- **Live plays:** a D/ST play no longer shows the same league tag twice, and its points are the whole play instead of half of it. A sack-and-fumble that's worth 3 showed "+2" with two identical tags. (#63)
+- **Live plays:** a team's own defense is no longer credited with forcing a fumble when that team's player is the one who fumbled. (#63)
 
 ## 1.0.15 — 2026-09-26
 
