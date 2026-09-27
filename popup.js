@@ -295,7 +295,7 @@ function espnLeagueData(d, cfg, week, period, dump, extraInfo) {
       const pos = ESPN_POS[p.defaultPositionId] || '?';
       const nfl = ESPN_TEAMS[p.proTeamId] || null;
       const pid = sleeperIdFor(p, dump) || `espn:${p.id}`;
-      extraInfo[pid] ??= { name: shortName(p.firstName, p.lastName, pos, nfl, pid), pos, team: nfl, inj: null, num: null };
+      extraInfo[pid] ??= { name: shortName(p.firstName, p.lastName, pos, nfl, pid), full: fullName(p.firstName, p.lastName, pos, nfl, pid), pos, team: nfl, inj: null, num: null };
       const stat = (src) => (p.stats || []).find((x) => x.scoringPeriodId === Number(week) && x.statSourceId === src && x.statSplitTypeId === 1);
       const bench = ESPN_BENCH_SLOTS.has(e.lineupSlotId);
       if (!bench) starters.push(pid);
@@ -484,6 +484,14 @@ function shortName(first, last, pos, team, pid) {
   return first ? `${first[0]}. ${last}` : last || `Player ${pid}`;
 }
 
+// His name in full, for the places with room for it (the points breakdown). Team defenses are named
+// the way Sleeper names them — "Minnesota Vikings D/ST" — falling back to the abbreviation.
+function fullName(first, last, pos, team, pid) {
+  const both = [first, last].filter(Boolean).join(' ');
+  if (pos === 'DEF') return both ? `${both} D/ST` : `${team || pid} D/ST`;
+  return both || `Player ${pid}`;
+}
+
 function playerInfo(pid, proj, dump, extra) {
   const pr = proj[pid];
   const d = dump?.[pid];
@@ -491,12 +499,12 @@ function playerInfo(pid, proj, dump, extra) {
   if (pr?.player) {
     const p = pr.player;
     const team = pr.team || p.team;
-    return { name: shortName(p.first_name, p.last_name, p.position, team, pid), pos: p.position, team, inj: p.injury_status, num };
+    return { name: shortName(p.first_name, p.last_name, p.position, team, pid), full: fullName(p.first_name, p.last_name, p.position, team, pid), pos: p.position, team, inj: p.injury_status, num };
   }
-  if (d) return { name: shortName(d[0], d[1], d[2], d[3], pid), pos: d[2], team: d[3], inj: d[4], num };
+  if (d) return { name: shortName(d[0], d[1], d[2], d[3], pid), full: fullName(d[0], d[1], d[2], d[3], pid), pos: d[2], team: d[3], inj: d[4], num };
   if (extra?.[pid]) return extra[pid]; // ESPN player we couldn't match to Sleeper
-  if (/^[A-Z]{2,3}$/.test(pid)) return { name: `${pid} D/ST`, pos: 'DEF', team: pid, inj: null, num: null };
-  return { name: `Player ${pid}`, pos: '?', team: null, inj: null, num: null };
+  if (/^[A-Z]{2,3}$/.test(pid)) return { name: `${pid} D/ST`, full: `${pid} D/ST`, pos: 'DEF', team: pid, inj: null, num: null };
+  return { name: `Player ${pid}`, full: `Player ${pid}`, pos: '?', team: null, inj: null, num: null };
 }
 
 async function loadAll(username, weekOverride) {
@@ -1513,10 +1521,10 @@ function renderBreakdown() {
 
   el.replaceChildren(
     h('div', { class: 'ro-backdrop', onclick: closeBreakdown }),
-    h('div', { class: 'ro-panel bd-panel', role: 'dialog', 'aria-label': `${info.name} points breakdown`, style: `--lc:${sections[0].ld.color}` },
+    h('div', { class: 'ro-panel bd-panel', role: 'dialog', 'aria-label': `${info.full || info.name} points breakdown`, style: `--lc:${sections[0].ld.color}` },
       h('div', { class: 'ro-head' },
         h('div', { class: 'ro-title' },
-          h('div', { class: 'ro-team' }, info.name, info.num != null && info.num !== '' ? h('span', { class: 'un' }, ` #${info.num}`) : null),
+          h('div', { class: 'ro-team' }, info.full || info.name, info.num != null && info.num !== '' ? h('span', { class: 'un' }, ` #${info.num}`) : null),
           h('div', { class: 'ro-sub' }, [`${info.pos}${info.team ? ' · ' + info.team : ''}`, gameLine(game, info.team)].join(' · '))),
         h('button', { type: 'button', class: 'ghost x', title: 'Close (Esc)', onclick: closeBreakdown }, '✕')),
       body));
