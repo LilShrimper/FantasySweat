@@ -390,13 +390,13 @@ test('the gap is measured against their score, never their projection', () => {
   const me = side(104.7, [starter('in'), starter('pre'), starter('post')], 120);
   const opp = side(118.9, [starter('in'), starter('post')], 129);
   assert.equal(api.needCell(me, opp).text, '14.2 · 2 left');
-  assert.equal(api.needCell(opp, me).text, 'ahead · 1 left');
+  assert.equal(api.needCell(opp, me).text, 'Ahead · 1 left');
   assert.equal(api.startersLive(me), 2);
   // Ahead of their projection but behind their score is behind, full stop.
-  assert.equal(api.needCell(side(125, [starter('in')], 120), opp).text, 'ahead · 1 left');
+  assert.equal(api.needCell(side(125, [starter('in')], 120), opp).text, 'Ahead · 1 left');
   assert.equal(api.needCell(side(110, [starter('in')], 200), opp).text, '8.9 · 1 left');
   // Level, and out of players.
-  assert.equal(api.needCell(side(96, [starter('in')]), side(96, [])).text, 'level · 1 left');
+  assert.equal(api.needCell(side(96, [starter('in')]), side(96, [])).text, 'Tied · 1 left');
   assert.equal(api.needCell(side(90, [starter('post')]), opp).text, '28.9 · done');
   // Nothing anywhere claims a lead is safe: no cell ever says "clear".
   const cells = [api.needCell(me, opp), api.needCell(opp, me), api.needCell(side(125, [starter('in')], 120), opp)];
@@ -428,4 +428,13 @@ test('a lead change is noted once, and 0-0 at kickoff is not one', () => {
   assert.equal(api.leadSeen.get('L1'), 'up');
   assert.equal(api.flipWhen(20_000), 'just now');
   assert.equal(api.flipWhen(6 * 60_000), '6 min ago');
+});
+
+test('the cell says which side it is, so the card can color it', () => {
+  const side = (points, roster) => ({ m: { points }, roster });
+  const starter = () => ({ pid: '1', slot: 'RB', game: { state: 'in' } });
+  const up = side(120, [starter()]), down = side(100, [starter()]), same = side(120, [starter()]);
+  assert.equal(api.needCell(up, down).tone, 'ahead');   // green when this is your side
+  assert.equal(api.needCell(down, up).tone, 'behind');  // plain
+  assert.equal(api.needCell(up, same).tone, 'tied');    // plain
 });

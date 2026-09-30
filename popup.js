@@ -1037,9 +1037,9 @@ function needCell(side, other) {
   const tail = left ? `${left} left` : 'done';
   const mine = `${fmt2(have)} to ${fmt2(theirs)} · ${left ? `${left} of your starters still playing` : 'nobody left to play'}`;
   const moving = theirLeft ? ` · their score can still move, ${theirLeft} of theirs still playing` : ' · their starters are done, so that number is final';
-  if (have > theirs) return { text: `ahead · ${tail}`, title: `Ahead by ${fmt2(have - theirs)} — ${mine}${moving}` };
-  if (have === theirs) return { text: `level · ${tail}`, title: `Level — ${mine}${moving}` };
-  return { text: `${fmt2(theirs - have)} · ${tail}`, title: `${fmt2(theirs - have)} behind — ${mine}${moving}` };
+  if (have > theirs) return { tone: 'ahead', text: `Ahead · ${tail}`, title: `Ahead by ${fmt2(have - theirs)} — ${mine}${moving}` };
+  if (have === theirs) return { tone: 'tied', text: `Tied · ${tail}`, title: `Tied — ${mine}${moving}` };
+  return { tone: 'behind', text: `${fmt2(theirs - have)} · ${tail}`, title: `${fmt2(theirs - have)} behind — ${mine}${moving}` };
 }
 
 // Under "still to play": how far each side is from the other's score right now, and what it has left
@@ -1051,10 +1051,12 @@ function needLine(ld) {
   if (!games.length || !games.some((g) => g.state !== 'pre')) return null;
   const mine = needCell(ld.me, ld.opp), theirs = needCell(ld.opp, ld.me);
   const ahead = (ld.me.m?.points || 0) >= (ld.opp.m?.points || 0) ? ld.me : ld.opp;
+  // Whoever's ahead is the one colored, the way everything else here is: green when it's you, red
+  // when it's them. A tie and the side that's behind stay plain.
   return h('div', { class: 'to-play' },
-    h('span', { title: mine.title }, mine.text),
+    h('span', { class: mine.tone === 'ahead' ? 'good' : '', title: mine.title }, mine.text),
     h('span', { class: 'to-play-label' }, startersLive(ahead) ? 'needed to lead' : 'needed to win'),
-    h('span', { class: 'r', title: theirs.title }, theirs.text));
+    h('span', { class: `r ${theirs.tone === 'ahead' ? 'bad' : ''}`, title: theirs.title }, theirs.text));
 }
 
 // ---------- lead changes while you're watching ----------
