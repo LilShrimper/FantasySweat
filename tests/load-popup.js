@@ -23,6 +23,7 @@ const NAMES = [
   'lookSummary', 'lookSnapshot', 'agoText', 'sinceParts', 'sinceClass',
   'headline', 'headlinePts', 'headlineProj', 'legPtsVary', 'legProjVary', 'samePts',
   'liveProj', 'sleeperLiveProj',
+  'needCell', 'startersLive', 'leadState', 'trackLeads', 'leadFlips', 'leadSeen', 'flipWhen',
 ];
 const EXPORTS = `
 globalThis.__api = {

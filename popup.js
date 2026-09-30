@@ -936,7 +936,9 @@ function leagueCard(ld) {
         h('span', { class: 'pj' }, `proj ${fmt2(opp.proj)}`), ' ',
         h('span', { class: 'pts', style: `color:${winColor(1 - p)}`, title: totalNote(ld, opp) }, fmtPts(opp.m.points)))), // their side of the odds
     h('div', { class: 'bar', title: `Win chance ${Math.round(p * 100)}%` }, h('i', { style: `width:${(p * 100).toFixed(1)}%` })),
+    leadLine(ld),
     toPlayLine(ld),
+    needLine(ld),
     emptyLine(ld),
     byeLine(ld),
     sittingLine(ld));
@@ -1015,6 +1017,83 @@ function toPlayLine(ld) {
     h('span', null, mine || '—'),
     h('span', { class: 'to-play-label' }, 'still to play'),
     h('span', { class: 'r' }, theirs || '—'));
+}
+
+// How many of a side's starters can still add to its score — anyone whose game isn't over.
+function startersLive(side) {
+  return (side?.roster || []).filter((r) => r.pid && !BENCH_SLOTS.includes(r.slot) && r.game?.state !== 'post').length;
+}
+
+// One side of the "needed to win" line: what it still has to score to pass the other's projected
+// final, and how many starters it has left to do it with.
+function needCell(side, other) {
+  const have = side?.m?.points || 0;
+  const target = other?.proj || 0;
+  const need = target - have;
+  const left = startersLive(side);
+  if (need <= 0) {
+    return { text: `${fmt2(-need)} clear`, title: `${fmt2(have)} is already past their projected ${fmt2(target)}` };
+  }
+  // "left" counts anyone whose game isn't over, so it reads right next to "still to play" above,
+  // which counts only the ones who haven't kicked off.
+  return {
+    text: `${fmt2(need)} · ${left || 'none'} left`,
+    title: left
+      ? `${fmt2(have)} so far · ${fmt2(need)} more to pass their projected ${fmt2(target)} · ${left} starter${left === 1 ? '' : 's'} still playing`
+      : `${fmt2(need)} short of their projected ${fmt2(target)}, with nobody left to play`,
+  };
+}
+
+// Under "still to play": what each side needs from here to win it. Only while the matchup is live —
+// before the first kickoff it just repeats the projections, and once it's final the scores say it.
+function needLine(ld) {
+  if (ld.final || !ld.me || !ld.opp) return null;
+  const games = (current?.model.games || []).filter((g) => !g.none);
+  if (!games.length || !games.some((g) => g.state !== 'pre')) return null;
+  const mine = needCell(ld.me, ld.opp), theirs = needCell(ld.opp, ld.me);
+  return h('div', { class: 'to-play' },
+    h('span', { title: mine.title }, mine.text),
+    h('span', { class: 'to-play-label' }, 'needed to win'),
+    h('span', { class: 'r', title: theirs.title }, theirs.text));
+}
+
+// ---------- lead changes while you're watching ----------
+const LEAD_NOTE_MS = 10 * 60_000;
+const leadSeen = new Map();  // league id → the last decisive lead, 'up' or 'down'
+const leadFlips = new Map(); // league id → { up, at } for the most recent change
+
+const leadState = (me, opp) => {
+  const [a, b] = [me?.m?.points || 0, opp?.m?.points || 0];
+  return a > b ? 'up' : a < b ? 'down' : 'tied';
+};
+
+// Called on every refresh: remember who's ahead in each league and note when that turns over. A tie
+// isn't a lead change and doesn't wipe out what we remember, so 0–0 at kickoff never announces
+// anything — only going from ahead to behind, or behind to ahead, does.
+function trackLeads(data) {
+  for (const ld of data?.model?.leagues || []) {
+    if (!ld.me || !ld.opp) continue;
+    const id = ld.league.league_id;
+    const now = leadState(ld.me, ld.opp);
+    if (now === 'tied') continue;
+    const was = leadSeen.get(id);
+    leadSeen.set(id, now);
+    if (was && was !== now && !ld.final) leadFlips.set(id, { up: now === 'up', at: Date.now() });
+  }
+}
+
+const flipWhen = (ms) => (ms < 60_000 ? 'just now' : agoText(ms));
+
+// "▲ Took the lead · 2 min ago" on the card it happened in, for ten minutes after.
+function leadLine(ld) {
+  const flip = leadFlips.get(ld.league.league_id);
+  if (!flip) return null;
+  const since = Date.now() - flip.at;
+  if (since > LEAD_NOTE_MS) return null;
+  return h('div', {
+    class: `lead-flip ${flip.up ? 'good' : 'bad'}${since < 35_000 ? ' flip-new' : ''}`,
+    title: flip.up ? 'You went ahead in this league' : 'Your opponent went ahead in this league',
+  }, `${flip.up ? '▲ Took the lead' : '▼ Lost the lead'} · ${flipWhen(since)}`);
 }
 
 function injBadge(inj) {
@@ -2133,6 +2212,7 @@ async function refresh() {
     current = data;
     fillWeeks(current.state.week, current.week);
     setStatus('');
+    trackLeads(current);
     await trackLastLook(current);
     render();
     loadPlays(); // after the main view, so plays never hold it up

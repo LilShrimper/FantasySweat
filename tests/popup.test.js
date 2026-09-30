@@ -382,3 +382,44 @@ test('a player has both a short name for the rows and a full one for the breakdo
   const unknown = api.playerInfo('999', {}, {}, {});
   assert.equal(unknown.name, unknown.full);
 });
+
+test('"needed to win" says how much and from how many', () => {
+  const side = (points, roster) => ({ m: { points }, roster, proj: 0 });
+  const starter = (state) => ({ pid: '1', slot: 'RB', game: { state } });
+  const me = { ...side(104.7, [starter('in'), starter('pre'), starter('post')]), proj: 120 };
+  const opp = { ...side(96.4, [starter('pre'), starter('post')]), proj: 129 };
+  const mine = api.needCell(me, opp);
+  assert.equal(mine.text, "24.3 · 2 left");      // 129 projected against 104.7 scored, two still playing
+  assert.match(mine.title, /still playing/);
+  const theirs = api.needCell(opp, me);
+  assert.equal(theirs.text, "23.6 · 1 left");
+  // Already past what the other side is projected to finish on.
+  assert.equal(api.needCell({ ...me, m: { points: 133.2 } }, opp).text, '4.2 clear');
+  // Short with nobody left to play is a different sentence.
+  assert.equal(api.needCell(side(100, [starter('post')]), { proj: 110 }).text, "10.0 · none left");
+  assert.equal(api.startersLive(me), 2);
+});
+
+test('a lead change is noted once, and 0-0 at kickoff is not one', () => {
+  const league = (points, oppPoints) => ({
+    league: { league_id: 'L1' }, me: { m: { points } }, opp: { m: { points: oppPoints } }, final: false,
+  });
+  const run = (ld) => api.trackLeads({ model: { leagues: [ld] } });
+  api.leadSeen.clear(); api.leadFlips.clear();
+  run(league(0, 0));            // kickoff: tied, nothing to say
+  assert.equal(api.leadFlips.size, 0);
+  run(league(6.2, 0));          // first points: ahead, but that's not a change of lead
+  assert.equal(api.leadFlips.size, 0);
+  assert.equal(api.leadState({ m: { points: 6.2 } }, { m: { points: 0 } }), 'up');
+  run(league(6.2, 14.9));       // they go ahead: that's a flip
+  assert.equal(api.leadFlips.get('L1').up, false);
+  run(league(6.2, 14.9));       // nothing changed, so the note stays as it was
+  assert.equal(api.leadFlips.get('L1').up, false);
+  run(league(20.1, 14.9));      // back ahead
+  assert.equal(api.leadFlips.get('L1').up, true);
+  // A tie on the way through doesn't count as a change, and doesn't forget who was ahead.
+  run(league(20.1, 20.1));
+  assert.equal(api.leadSeen.get('L1'), 'up');
+  assert.equal(api.flipWhen(20_000), 'just now');
+  assert.equal(api.flipWhen(6 * 60_000), '6 min ago');
+});
