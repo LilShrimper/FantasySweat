@@ -1024,36 +1024,36 @@ function startersLive(side) {
   return (side?.roster || []).filter((r) => r.pid && !BENCH_SLOTS.includes(r.slot) && r.game?.state !== 'post').length;
 }
 
-// One side of the "needed to win" line: what it still has to score to pass the other's projected
-// final, and how many starters it has left to do it with.
+// One side of the "needed" line: how far it is from the other side's score **as it stands**, and how
+// many starters it has left. Never from a projection — a projection moves all afternoon, so being
+// "past" one means nothing, and a side that still has players can still score whatever it likes.
+// "left" counts anyone whose game isn't over, so it doesn't repeat the "still to play" line above,
+// which counts only players who haven't kicked off.
 function needCell(side, other) {
   const have = side?.m?.points || 0;
-  const target = other?.proj || 0;
-  const need = target - have;
+  const theirs = other?.m?.points || 0;
   const left = startersLive(side);
-  if (need <= 0) {
-    return { text: `${fmt2(-need)} clear`, title: `${fmt2(have)} is already past their projected ${fmt2(target)}` };
-  }
-  // "left" counts anyone whose game isn't over, so it reads right next to "still to play" above,
-  // which counts only the ones who haven't kicked off.
-  return {
-    text: `${fmt2(need)} · ${left || 'none'} left`,
-    title: left
-      ? `${fmt2(have)} so far · ${fmt2(need)} more to pass their projected ${fmt2(target)} · ${left} starter${left === 1 ? '' : 's'} still playing`
-      : `${fmt2(need)} short of their projected ${fmt2(target)}, with nobody left to play`,
-  };
+  const theirLeft = startersLive(other);
+  const tail = left ? `${left} left` : 'done';
+  const mine = `${fmt2(have)} to ${fmt2(theirs)} · ${left ? `${left} of your starters still playing` : 'nobody left to play'}`;
+  const moving = theirLeft ? ` · their score can still move, ${theirLeft} of theirs still playing` : ' · their starters are done, so that number is final';
+  if (have > theirs) return { text: `ahead · ${tail}`, title: `Ahead by ${fmt2(have - theirs)} — ${mine}${moving}` };
+  if (have === theirs) return { text: `level · ${tail}`, title: `Level — ${mine}${moving}` };
+  return { text: `${fmt2(theirs - have)} · ${tail}`, title: `${fmt2(theirs - have)} behind — ${mine}${moving}` };
 }
 
-// Under "still to play": what each side needs from here to win it. Only while the matchup is live —
-// before the first kickoff it just repeats the projections, and once it's final the scores say it.
+// Under "still to play": how far each side is from the other's score right now, and what it has left
+// to close it with. From the week's first kickoff until the matchup is final. Once the side that's
+// ahead has nobody left its score can't move, so the gap stops being "to lead" and becomes "to win".
 function needLine(ld) {
   if (ld.final || !ld.me || !ld.opp) return null;
   const games = (current?.model.games || []).filter((g) => !g.none);
   if (!games.length || !games.some((g) => g.state !== 'pre')) return null;
   const mine = needCell(ld.me, ld.opp), theirs = needCell(ld.opp, ld.me);
+  const ahead = (ld.me.m?.points || 0) >= (ld.opp.m?.points || 0) ? ld.me : ld.opp;
   return h('div', { class: 'to-play' },
     h('span', { title: mine.title }, mine.text),
-    h('span', { class: 'to-play-label' }, 'needed to win'),
+    h('span', { class: 'to-play-label' }, startersLive(ahead) ? 'needed to lead' : 'needed to win'),
     h('span', { class: 'r', title: theirs.title }, theirs.text));
 }
 

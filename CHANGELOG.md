@@ -7,7 +7,7 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 ## Unreleased
 
 ### New
-- **Needed to win:** under **still to play**, what each side has left to score to pass the other's projected final, and how many starters it has left to do it with — "25.92 · 7 left … needed to win … 34.95 · 9 left". Once you're past their projection it reads "2.1 clear" instead. It appears from the week's first kickoff and goes once the matchup is final. ("Left" counts anyone whose game isn't over, so it doesn't repeat the line above it, which counts only players who haven't kicked off.)
+- **Needed to lead:** under **still to play**, how far each side is from the other's score right now and how many starters it has left to close it — "ahead · 7 left … needed to lead … 8.3 · 9 left". It's measured against their score, never their projection, so it can't tell you you're past a number that's still moving; hovering says whether their score can still change and by how many players. Once the side that's ahead has nobody left, its score is fixed and the line says **needed to win**. It appears from the week's first kickoff and goes once the matchup is final. ("Left" counts anyone whose game isn't over, so it doesn't repeat the line above it, which counts only players who haven't kicked off.)
 - **Lead changes:** when a league turns over from ahead to behind, or behind to ahead, while you have Fantasy Sweat open, the card says so for ten minutes — "▲ Took the lead · just now", "▼ Lost the lead · 6 min ago" — and pulses once while it's fresh. 0–0 at kickoff isn't a lead change, and a tie on the way through doesn't count as one either.
 
 ## 1.0.19 — 2026-09-27

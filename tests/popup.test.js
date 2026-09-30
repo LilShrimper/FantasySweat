@@ -383,21 +383,27 @@ test('a player has both a short name for the rows and a full one for the breakdo
   assert.equal(unknown.name, unknown.full);
 });
 
-test('"needed to win" says how much and from how many', () => {
-  const side = (points, roster) => ({ m: { points }, roster, proj: 0 });
+test('the gap is measured against their score, never their projection', () => {
+  const side = (points, roster, proj) => ({ m: { points }, roster, proj });
   const starter = (state) => ({ pid: '1', slot: 'RB', game: { state } });
-  const me = { ...side(104.7, [starter('in'), starter('pre'), starter('post')]), proj: 120 };
-  const opp = { ...side(96.4, [starter('pre'), starter('post')]), proj: 129 };
-  const mine = api.needCell(me, opp);
-  assert.equal(mine.text, "24.3 · 2 left");      // 129 projected against 104.7 scored, two still playing
-  assert.match(mine.title, /still playing/);
-  const theirs = api.needCell(opp, me);
-  assert.equal(theirs.text, "23.6 · 1 left");
-  // Already past what the other side is projected to finish on.
-  assert.equal(api.needCell({ ...me, m: { points: 133.2 } }, opp).text, '4.2 clear');
-  // Short with nobody left to play is a different sentence.
-  assert.equal(api.needCell(side(100, [starter('post')]), { proj: 110 }).text, "10.0 · none left");
+  // His projection says 129 and hers says 120, and neither number is allowed to matter here.
+  const me = side(104.7, [starter('in'), starter('pre'), starter('post')], 120);
+  const opp = side(118.9, [starter('in'), starter('post')], 129);
+  assert.equal(api.needCell(me, opp).text, '14.2 · 2 left');
+  assert.equal(api.needCell(opp, me).text, 'ahead · 1 left');
   assert.equal(api.startersLive(me), 2);
+  // Ahead of their projection but behind their score is behind, full stop.
+  assert.equal(api.needCell(side(125, [starter('in')], 120), opp).text, 'ahead · 1 left');
+  assert.equal(api.needCell(side(110, [starter('in')], 200), opp).text, '8.9 · 1 left');
+  // Level, and out of players.
+  assert.equal(api.needCell(side(96, [starter('in')]), side(96, [])).text, 'level · 1 left');
+  assert.equal(api.needCell(side(90, [starter('post')]), opp).text, '28.9 · done');
+  // Nothing anywhere claims a lead is safe: no cell ever says "clear".
+  const cells = [api.needCell(me, opp), api.needCell(opp, me), api.needCell(side(125, [starter('in')], 120), opp)];
+  for (const c of cells) assert.doesNotMatch(c.text, /clear/);
+  // The hover says whether their number can still move.
+  assert.match(api.needCell(me, opp).title, /their score can still move/);
+  assert.match(api.needCell(me, side(118.9, [starter('post')])).title, /their starters are done/);
 });
 
 test('a lead change is noted once, and 0-0 at kickoff is not one', () => {
