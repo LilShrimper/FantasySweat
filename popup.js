@@ -926,7 +926,8 @@ function leagueCard(ld) {
     h('div', { class: 'lg-score' },
       h('div', { class: 'side' },
         who(me, 'me'), standing(me),
-        h('span', { class: 'pts', style: `color:${color}`, title: totalNote(ld, me) }, fmtPts(me.m.points)), ' ',
+        h('span', { class: 'pts', style: `color:${color}`, title: totalNote(ld, me) }, fmtPts(me.m.points)),
+        marginNow(ld), ' ',
         h('span', { class: 'pj' }, `proj ${fmt2(me.proj)}`)),
       h('div', { class: 'mid' },
         h('span', { class: 'vs' }, 'vs'),
@@ -936,6 +937,7 @@ function leagueCard(ld) {
         h('span', { class: 'pj' }, `proj ${fmt2(opp.proj)}`), ' ',
         h('span', { class: 'pts', style: `color:${winColor(1 - p)}`, title: totalNote(ld, opp) }, fmtPts(opp.m.points)))), // their side of the odds
     h('div', { class: 'bar', title: `Win chance ${Math.round(p * 100)}%` }, h('i', { style: `width:${(p * 100).toFixed(1)}%` })),
+    leadLine(ld),
     toPlayLine(ld),
     emptyLine(ld),
     byeLine(ld),
@@ -987,34 +989,109 @@ function byeLine(ld) {
     `⚠ ${byes.length === 1 ? 'Starter' : `${byes.length} starters`} on bye: ${names}`);
 }
 
-// "2 RB, 1 WR, 1 K": a team's starters whose games haven't kicked off yet, counted by position
-// (QB, RB, WR, TE, K, D/ST, then anything else). Bench and empty lineup slots don't count.
-function stillToPlay(side) {
+// "{ n: 6, text: '1 QB, 2 RB, 1 WR, 1 K, 1 D/ST' }": the starters who can still add to a side's
+// score — anyone whose game isn't over — counted by position (QB, RB, WR, TE, K, D/ST, then anything
+// else). Bench, empty lineup slots and players with no game this week don't count.
+function leftToPlay(side) {
   const counts = {};
+  let n = 0;
   for (const r of side?.roster || []) {
-    if (!r.pid || BENCH_SLOTS.includes(r.slot) || r.game?.state !== 'pre') continue;
+    if (!r.pid || BENCH_SLOTS.includes(r.slot) || !r.game || r.game.state === 'post') continue;
     counts[r.info.pos] = (counts[r.info.pos] || 0) + 1;
+    n++;
   }
   const rank = (pos) => (POS_ORDER.includes(pos) ? POS_ORDER.indexOf(pos) : POS_ORDER.length);
-  return Object.entries(counts)
+  const text = Object.entries(counts)
     .sort(([a], [b]) => rank(a) - rank(b) || a.localeCompare(b))
-    .map(([pos, n]) => `${n} ${pos === 'DEF' ? 'D/ST' : pos}`)
+    .map(([pos, c]) => `${c} ${pos === 'DEF' ? 'D/ST' : pos}`)
     .join(', ');
+  return { n, text };
 }
 
-// Under the win bar: each side's starters still to play, from the week's first kickoff (usually
-// Thursday) on — before that it's the whole lineup. Players drop off as their games kick off, and the
-// line goes once nobody's left on either side.
+// Under the win bar: how many starters each side has left and who they are — "6 (1 QB, 2 RB, 1 WR,
+// 1 K, 1 D/ST)". From the week's first kickoff on; before that it's just the lineup. The line goes
+// once both sides are out of players.
 function toPlayLine(ld) {
   const games = (current?.model.games || []).filter((g) => !g.none);
   if (!games.length) return null; // no schedule loaded: can't tell who has played
   if (!games.some((g) => g.state !== 'pre')) return null; // the week hasn't kicked off yet
-  const mine = stillToPlay(ld.me), theirs = stillToPlay(ld.opp);
-  if (!mine && !theirs) return null;
-  return h('div', { class: 'to-play', title: 'Starters whose games haven’t kicked off yet' },
-    h('span', null, mine || '—'),
-    h('span', { class: 'to-play-label' }, 'still to play'),
-    h('span', { class: 'r' }, theirs || '—'));
+  const mine = leftToPlay(ld.me), theirs = leftToPlay(ld.opp);
+  if (!mine.n && !theirs.n) return null;
+  const cell = (x) => (x.n ? `${x.n} (${x.text})` : 'none');
+  return h('div', { class: 'to-play', title: 'Starters whose games aren’t over, so they can still score' },
+    h('span', null, cell(mine)),
+    // The full label, even though it wraps the position lists on the longest rosters at popup width.
+    h('span', { class: 'to-play-label' }, 'left to play'),
+    h('span', { class: 'r' }, cell(theirs)));
+}
+
+// Where you stand against their score **right now** — never against a projection, which moves all
+// afternoon, so being "past" one means nothing. Green when you're up, red when you're down. The
+// hover says whether their number can still move: once their starters are done, your gap is exactly
+// what it takes.
+function marginText(me, opp) {
+  const have = me?.m?.points || 0;
+  const theirs = opp?.m?.points || 0;
+  const diff = have - theirs;
+  const theirLeft = leftToPlay(opp).n;
+  const moving = theirLeft
+    ? `${theirLeft} of their starters can still score, so it can still move`
+    : 'their starters are done, so that\'s the gap for good';
+  if (!diff) return { tone: 'tied', text: '(tied)', title: `Level with their ${fmt2(theirs)} · ${moving}` };
+  return {
+    tone: diff > 0 ? 'ahead' : 'behind',
+    text: `(${signed(diff)})`,
+    title: `${fmt2(Math.abs(diff))} ${diff > 0 ? 'ahead of' : 'behind'} their ${fmt2(theirs)} right now · ${moving}`,
+  };
+}
+
+// That margin beside your score. Not before the week kicks off (it would just read 0) and not once
+// the matchup is final — the verdict in the corner carries the final margin.
+function marginNow(ld) {
+  if (ld.final || !ld.me || !ld.opp) return null;
+  const games = (current?.model.games || []).filter((g) => !g.none);
+  if (!games.length || !games.some((g) => g.state !== 'pre')) return null;
+  const m = marginText(ld.me, ld.opp);
+  return h('span', { class: `mnow ${m.tone === 'ahead' ? 'good' : m.tone === 'behind' ? 'bad' : ''}`, title: m.title }, ` ${m.text}`);
+}
+
+// ---------- lead changes while you're watching ----------
+const LEAD_NOTE_MS = 10 * 60_000;
+const leadSeen = new Map();  // league id → the last decisive lead, 'up' or 'down'
+const leadFlips = new Map(); // league id → { up, at } for the most recent change
+
+const leadState = (me, opp) => {
+  const [a, b] = [me?.m?.points || 0, opp?.m?.points || 0];
+  return a > b ? 'up' : a < b ? 'down' : 'tied';
+};
+
+// Called on every refresh: remember who's ahead in each league and note when that turns over. A tie
+// isn't a lead change and doesn't wipe out what we remember, so 0–0 at kickoff never announces
+// anything — only going from ahead to behind, or behind to ahead, does.
+function trackLeads(data) {
+  for (const ld of data?.model?.leagues || []) {
+    if (!ld.me || !ld.opp) continue;
+    const id = ld.league.league_id;
+    const now = leadState(ld.me, ld.opp);
+    if (now === 'tied') continue;
+    const was = leadSeen.get(id);
+    leadSeen.set(id, now);
+    if (was && was !== now && !ld.final) leadFlips.set(id, { up: now === 'up', at: Date.now() });
+  }
+}
+
+const flipWhen = (ms) => (ms < 60_000 ? 'just now' : agoText(ms));
+
+// "▲ Took the lead · 2 min ago" on the card it happened in, for ten minutes after.
+function leadLine(ld) {
+  const flip = leadFlips.get(ld.league.league_id);
+  if (!flip) return null;
+  const since = Date.now() - flip.at;
+  if (since > LEAD_NOTE_MS) return null;
+  return h('div', {
+    class: `lead-flip ${flip.up ? 'good' : 'bad'}${since < 35_000 ? ' flip-new' : ''}`,
+    title: flip.up ? 'You went ahead in this league' : 'Your opponent went ahead in this league',
+  }, `${flip.up ? '▲ Took the lead' : '▼ Lost the lead'} · ${flipWhen(since)}`);
 }
 
 function injBadge(inj) {
@@ -2133,6 +2210,7 @@ async function refresh() {
     current = data;
     fillWeeks(current.state.week, current.week);
     setStatus('');
+    trackLeads(current);
     await trackLastLook(current);
     render();
     loadPlays(); // after the main view, so plays never hold it up

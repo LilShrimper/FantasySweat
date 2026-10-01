@@ -4,6 +4,15 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### New
+- **Where you stand, beside your score:** "104.7 **(+8.3)** proj 131.0" — how far you are from their score right now, green when you're up and red when you're down, "(tied)" when you're level. It's measured against their score, never their projection, so it can never tell you you're past a number that's still climbing. Hovering says whether that can still change: "45.1 behind their 133.2 right now · their starters are done, so that's the gap for good." It stays off until the week's first kickoff and goes once the matchup is final, where the verdict in the corner already gives the margin.
+- **Lead changes:** when a league turns over from ahead to behind, or behind to ahead, while you have Fantasy Sweat open, the card says so for ten minutes — "▲ Took the lead · just now", "▼ Lost the lead · 6 min ago" — and pulses once while it's fresh. 0–0 at kickoff isn't a lead change, and a tie on the way through doesn't count as one either.
+
+### Changed
+- **Still to play is now left to play:** the line under the win bar leads with the number — "7 (3 RB, 1 WR, 1 TE, 1 K, 1 D/ST)  left to play  9 (1 QB, 2 RB, 4 WR, 1 K, 1 D/ST)" — and counts every starter whose game isn't over, not just the ones who haven't kicked off. A side in the middle of the afternoon games used to read as having nobody left when it had five players on the field.
+
 ## 1.0.19 — 2026-09-27
 
 ### Changed

@@ -18,11 +18,12 @@ const popupPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'popup.js'
 const NAMES = [
   'leagueProj', 'scorePlay', 'slimPlay', 'downSpot', 'safeAvatar', 'teamLogo', 'isNewer', 'initials',
   'sleeperWinProb', 'secondsLeft', 'statLabel', 'fmt2', 'fmtPts', 'signed', 'liveScores', 'emptyLine',
-  'byeLine', 'byeStarters', 'stillToPlay', 'playerInfo', 'cardName', 'leagueTag',
+  'byeLine', 'byeStarters', 'leftToPlay', 'playerInfo', 'cardName', 'leagueTag',
   'sittingLine', 'sittingStarters',
   'lookSummary', 'lookSnapshot', 'agoText', 'sinceParts', 'sinceClass',
   'headline', 'headlinePts', 'headlineProj', 'legPtsVary', 'legProjVary', 'samePts',
   'liveProj', 'sleeperLiveProj',
+  'marginText', 'leadState', 'trackLeads', 'leadFlips', 'leadSeen', 'flipWhen',
 ];
 const EXPORTS = `
 globalThis.__api = {
