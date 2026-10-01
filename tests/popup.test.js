@@ -383,27 +383,42 @@ test('a player has both a short name for the rows and a full one for the breakdo
   assert.equal(unknown.name, unknown.full);
 });
 
-test('the gap is measured against their score, never their projection', () => {
+test('the margin beside your score is measured against their score, never their projection', () => {
   const side = (points, roster, proj) => ({ m: { points }, roster, proj });
-  const starter = (state) => ({ pid: '1', slot: 'RB', game: { state } });
-  // His projection says 129 and hers says 120, and neither number is allowed to matter here.
+  const starter = (state, pos = 'RB') => ({ pid: '1', slot: pos, info: { pos }, game: { state } });
+  // His projection says 120 and hers says 129, and neither number is allowed to matter here.
   const me = side(104.7, [starter('in'), starter('pre'), starter('post')], 120);
   const opp = side(118.9, [starter('in'), starter('post')], 129);
-  assert.equal(api.needCell(me, opp).text, '14.2 · 2 left');
-  assert.equal(api.needCell(opp, me).text, 'Ahead · 1 left');
-  assert.equal(api.startersLive(me), 2);
+  assert.equal(api.marginText(me, opp).text, '(−14.2)');
+  assert.equal(api.marginText(me, opp).tone, 'behind');
+  assert.equal(api.marginText(opp, me).text, '(+14.2)');
+  assert.equal(api.marginText(opp, me).tone, 'ahead');
   // Ahead of their projection but behind their score is behind, full stop.
-  assert.equal(api.needCell(side(125, [starter('in')], 120), opp).text, 'Ahead · 1 left');
-  assert.equal(api.needCell(side(110, [starter('in')], 200), opp).text, '8.9 · 1 left');
-  // Level, and out of players.
-  assert.equal(api.needCell(side(96, [starter('in')]), side(96, [])).text, 'Tied · 1 left');
-  assert.equal(api.needCell(side(90, [starter('post')]), opp).text, '28.9 · done');
-  // Nothing anywhere claims a lead is safe: no cell ever says "clear".
-  const cells = [api.needCell(me, opp), api.needCell(opp, me), api.needCell(side(125, [starter('in')], 120), opp)];
-  for (const c of cells) assert.doesNotMatch(c.text, /clear/);
-  // The hover says whether their number can still move.
-  assert.match(api.needCell(me, opp).title, /their score can still move/);
-  assert.match(api.needCell(me, side(118.9, [starter('post')])).title, /their starters are done/);
+  assert.equal(api.marginText(side(125, [starter('in')], 120), opp).text, '(+6.1)');
+  assert.equal(api.marginText(side(110, [starter('in')], 200), opp).text, '(−8.9)');
+  assert.equal(api.marginText(side(96, []), side(96, [])).text, '(tied)');
+  // Nothing claims a lead is safe while they can still score, and nothing anywhere says "clear".
+  assert.match(api.marginText(me, opp).title, /can still move/);
+  assert.match(api.marginText(me, side(118.9, [starter('post')])).title, /the gap for good/);
+  assert.doesNotMatch(api.marginText(side(125, [], 120), opp).title, /clear/);
+});
+
+test('"left to play" counts everyone who can still score, with the positions', () => {
+  const starter = (state, pos) => ({ pid: pos + state, slot: pos, info: { pos }, game: { state } });
+  const side = {
+    roster: [
+      starter('pre', 'QB'), starter('in', 'RB'), starter('pre', 'RB'), starter('post', 'WR'),
+      starter('in', 'K'), starter('pre', 'DEF'),
+      { pid: 'b1', slot: 'BN', info: { pos: 'WR' }, game: { state: 'pre' } }, // bench doesn't count
+      { pid: null, slot: 'FLEX' },                                            // nor an empty spot
+      { pid: 'bye', slot: 'TE', info: { pos: 'TE' }, game: null },            // nor a player on bye
+    ],
+  };
+  const left = api.leftToPlay(side);
+  assert.equal(left.n, 5);                                   // the WR whose game is over is out
+  assert.equal(left.text, '1 QB, 2 RB, 1 K, 1 D/ST');        // in Sleeper's position order
+  assert.equal(api.leftToPlay({ roster: [starter('post', 'QB')] }).n, 0);
+  assert.equal(api.leftToPlay(null).n, 0);
 });
 
 test('a lead change is noted once, and 0-0 at kickoff is not one', () => {
@@ -430,11 +445,11 @@ test('a lead change is noted once, and 0-0 at kickoff is not one', () => {
   assert.equal(api.flipWhen(6 * 60_000), '6 min ago');
 });
 
-test('the cell says which side it is, so the card can color it', () => {
+test('the margin says which way it goes, so the card can color it', () => {
   const side = (points, roster) => ({ m: { points }, roster });
-  const starter = () => ({ pid: '1', slot: 'RB', game: { state: 'in' } });
+  const starter = () => ({ pid: '1', slot: 'RB', info: { pos: 'RB' }, game: { state: 'in' } });
   const up = side(120, [starter()]), down = side(100, [starter()]), same = side(120, [starter()]);
-  assert.equal(api.needCell(up, down).tone, 'ahead');   // green when this is your side
-  assert.equal(api.needCell(down, up).tone, 'behind');  // plain
-  assert.equal(api.needCell(up, same).tone, 'tied');    // plain
+  assert.equal(api.marginText(up, down).tone, 'ahead');   // green
+  assert.equal(api.marginText(down, up).tone, 'behind');  // red
+  assert.equal(api.marginText(up, same).tone, 'tied');    // plain
 });
