@@ -1020,8 +1020,8 @@ function toPlayLine(ld) {
   const cell = (x) => (x.n ? `${x.n} (${x.text})` : 'none');
   return h('div', { class: 'to-play', title: 'Starters whose games aren’t over, so they can still score' },
     h('span', null, cell(mine)),
-    // Just "left": the label shares a row with two position lists, and a longer one wraps them.
-    h('span', { class: 'to-play-label' }, 'left'),
+    // The full label, even though it wraps the position lists on the longest rosters at popup width.
+    h('span', { class: 'to-play-label' }, 'left to play'),
     h('span', { class: 'r' }, cell(theirs)));
 }
 

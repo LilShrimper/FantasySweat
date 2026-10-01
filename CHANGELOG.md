@@ -11,7 +11,7 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 - **Lead changes:** when a league turns over from ahead to behind, or behind to ahead, while you have Fantasy Sweat open, the card says so for ten minutes — "▲ Took the lead · just now", "▼ Lost the lead · 6 min ago" — and pulses once while it's fresh. 0–0 at kickoff isn't a lead change, and a tie on the way through doesn't count as one either.
 
 ### Changed
-- **Still to play is now left:** the line under the win bar leads with the number — "7 (3 RB, 1 WR, 1 TE, 1 K, 1 D/ST) · left · 9 (1 QB, 2 RB, 4 WR, 1 K, 1 D/ST)" — and counts every starter whose game isn't over, not just the ones who haven't kicked off. A side in the middle of the afternoon games used to read as having nobody left when it had five players on the field.
+- **Still to play is now left to play:** the line under the win bar leads with the number — "7 (3 RB, 1 WR, 1 TE, 1 K, 1 D/ST)  left to play  9 (1 QB, 2 RB, 4 WR, 1 K, 1 D/ST)" — and counts every starter whose game isn't over, not just the ones who haven't kicked off. A side in the middle of the afternoon games used to read as having nobody left when it had five players on the field.
 
 ## 1.0.19 — 2026-09-27
 
