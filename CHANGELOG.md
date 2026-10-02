@@ -4,6 +4,12 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## 1.0.21 — 2026-10-01
+
+### Fixed
+- The margin beside your score writes one decimal, matching the verdict in the corner: "(−4.0)" rather than "(−4)". It showed up with an opponent sitting on exactly 4 points. (#77)
+- Hovering that margin before your first player has scored used to read "15.6 behind their 15.6 right now", the same number twice. It now reads "You're 15.6 behind — 0.0 to their 15.6 · 10 of their starters can still score, so it can still move". (#77)
+
 ## 1.0.20 — 2026-09-30
 
 ### New
