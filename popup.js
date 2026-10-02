@@ -1037,11 +1037,12 @@ function marginText(me, opp) {
   const moving = theirLeft
     ? `${theirLeft} of their starters can still score, so it can still move`
     : 'their starters are done, so that\'s the gap for good';
-  if (!diff) return { tone: 'tied', text: '(tied)', title: `Level with their ${fmt2(theirs)} · ${moving}` };
+  if (!diff) return { tone: 'tied', text: '(tied)', title: `Level at ${fmt2(theirs)} · ${moving}` };
   return {
     tone: diff > 0 ? 'ahead' : 'behind',
-    text: `(${signed(diff)})`,
-    title: `${fmt2(Math.abs(diff))} ${diff > 0 ? 'ahead of' : 'behind'} their ${fmt2(theirs)} right now · ${moving}`,
+    // One decimal, like the verdict's margin in the corner: "(+8.3)", "(−4.0)".
+    text: `(${diff > 0 ? '+' : '−'}${fmt1(Math.abs(diff))})`,
+    title: `You're ${fmt2(Math.abs(diff))} ${diff > 0 ? 'ahead' : 'behind'} — ${fmt2(have)} to their ${fmt2(theirs)} · ${moving}`,
   };
 }
 

@@ -397,6 +397,10 @@ test('the margin beside your score is measured against their score, never their 
   assert.equal(api.marginText(side(125, [starter('in')], 120), opp).text, '(+6.1)');
   assert.equal(api.marginText(side(110, [starter('in')], 200), opp).text, '(−8.9)');
   assert.equal(api.marginText(side(96, []), side(96, [])).text, '(tied)');
+  // One decimal, like the verdict's margin in the corner — never a bare "(−4)".
+  assert.equal(api.marginText(side(0, []), side(4, [])).text, '(−4.0)');
+  assert.equal(api.marginText(side(104.74, []), side(96.4, [])).text, '(+8.3)');
+  assert.match(api.marginText(side(0, []), side(15.6, [])).title, /^You're 15.6 behind — 0.0 to their 15.6/);
   // Nothing claims a lead is safe while they can still score, and nothing anywhere says "clear".
   assert.match(api.marginText(me, opp).title, /can still move/);
   assert.match(api.marginText(me, side(118.9, [starter('post')])).title, /the gap for good/);
