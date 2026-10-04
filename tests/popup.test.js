@@ -580,3 +580,12 @@ test('the Settings option picks which counts a card carries, by tab', () => {
   assert.deepEqual([...shown('none', false), ...shown('none', true)], []); // the card carries neither
   assert.deepEqual(Object.keys({ ...api.LINE_MODES }).sort(), ['both', 'both-live', 'none', 'play', 'play-live', 'yet']);
 });
+
+test('the projections cache goes stale, so a status change gets through', () => {
+  const ttl = 10 * 60_000;
+  const cache = { key: '2026-4-regular', t: 1_000_000, map: {} };
+  assert.equal(api.cacheFresh(cache, '2026-4-regular', ttl, cache.t + 9 * 60_000), true);
+  assert.equal(api.cacheFresh(cache, '2026-4-regular', ttl, cache.t + ttl), false);       // ten minutes on
+  assert.equal(api.cacheFresh(cache, '2026-5-regular', ttl, cache.t + 1000), false);      // another week
+  assert.equal(api.cacheFresh(null, '2026-4-regular', ttl, 1), false);                    // nothing cached yet
+});

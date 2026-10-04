@@ -46,6 +46,7 @@ const LIVE_REFRESH_MS = 30_000;
 const IDLE_REFRESH_MS = 5 * 60_000;
 const TAB_REFRESH_LOCKOUT_MS = 10_000; // switching tabs refreshes, but not within 10 s of the last refresh
 const PLAYER_CACHE_MS = 24 * 3600_000;
+const PROJ_CACHE_MS = 10 * 60_000; // what Sleeper's CDN holds the projections feed for
 
 // ---------- storage (chrome.storage when running as an extension, localStorage otherwise) ----------
 const hasChromeStorage = typeof chrome !== 'undefined' && chrome.storage?.local;
@@ -85,7 +86,7 @@ async function getJSON(url) {
 }
 
 // ---------- data loading ----------
-let projCache = null; // { key, map } — projections are big-ish, keep them for the life of the popup
+let projCache = null; // { key, t, map } — 4.6 MB, so it's reused until PROJ_CACHE_MS is up
 
 async function getState() {
   const s = await getJSON(`${SLEEPER}/state/nfl`);
@@ -96,14 +97,26 @@ async function getState() {
   };
 }
 
+const cacheFresh = (cache, key, ttl, now = Date.now()) => !!cache && cache.key === key && now - cache.t < ttl;
+
+// This feed carries each player's injury status as well as his projection, and it's where a status
+// comes from for anyone who has a projection row — so holding it for the life of the window meant a
+// player could go Out on Sleeper and still read as healthy here until the window was reopened.
+// Sleeper's CDN holds the endpoint for ten minutes, so asking again any sooner than that would only
+// get the same answer back.
 async function getProjections(season, week, seasonType) {
   const key = `${season}-${week}-${seasonType}`;
-  if (projCache?.key === key) return projCache.map;
-  const arr = await getJSON(`${PROJ}/${season}/${week}?season_type=${seasonType}&${POS_QS}`);
-  const map = {};
-  for (const p of arr || []) map[p.player_id] = p;
-  projCache = { key, map };
-  return map;
+  if (cacheFresh(projCache, key, PROJ_CACHE_MS)) return projCache.map;
+  try {
+    const arr = await getJSON(`${PROJ}/${season}/${week}?season_type=${seasonType}&${POS_QS}`);
+    const map = {};
+    for (const p of arr || []) map[p.player_id] = p;
+    projCache = { key, t: Date.now(), map };
+  } catch (e) {
+    if (projCache?.key !== key) throw e; // nothing for this week to fall back on
+    // Keep what we have and try again on the next refresh rather than losing every projection.
+  }
+  return projCache.map;
 }
 
 // Full player list — the only place Sleeper has jersey numbers (also the name/team fallback for
@@ -1671,7 +1684,10 @@ function renderBreakdown() {
     h('div', { class: 'ro-panel bd-panel', role: 'dialog', 'aria-label': `${info.full || info.name} points breakdown`, style: `--lc:${sections[0].ld.color}` },
       h('div', { class: 'ro-head' },
         h('div', { class: 'ro-title' },
-          h('div', { class: 'ro-team' }, info.full || info.name, info.num != null && info.num !== '' ? h('span', { class: 'un' }, ` #${info.num}`) : null),
+          h('div', { class: 'ro-team' }, info.full || info.name,
+            info.num != null && info.num !== '' ? h('span', { class: 'un' }, ` #${info.num}`) : null,
+            // The rows carry his status, so the panel you open from them should too.
+            info.inj ? h('span', { class: 'bd-inj' }, injBadge(info.inj)) : null),
           h('div', { class: 'ro-sub' }, [`${info.pos}${info.team ? ' · ' + info.team : ''}`, gameLine(game, info.team)].join(' · '))),
         h('button', { type: 'button', class: 'ghost x', title: 'Close (Esc)', onclick: closeBreakdown }, '✕')),
       body));
