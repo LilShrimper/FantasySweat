@@ -589,3 +589,25 @@ test('the projections cache goes stale, so a status change gets through', () => 
   assert.equal(api.cacheFresh(cache, '2026-5-regular', ttl, cache.t + 1000), false);      // another week
   assert.equal(api.cacheFresh(null, '2026-4-regular', ttl, 1), false);                    // nothing cached yet
 });
+
+test('a turnover brought back shows its return yards', () => {
+  // The defender's own row, and the same play once it's rolled into his team's defense.
+  assert.equal(api.returnYards({ idp_int: 1, idp_int_ret_yd: 15 }), 15);
+  assert.equal(api.returnYards({ int: 1, int_ret_yd: 15 }), 15);
+  assert.equal(api.returnYards({ idp_fum_rec: 1, idp_fum_rec_ret_yd: 32 }), 32);
+  assert.equal(api.returnYards({ blk_kick_ret_yd: 8 }), 8);
+  // Nothing to say when the ball wasn't brought back, or on a play that isn't a turnover.
+  assert.equal(api.returnYards({ idp_int: 1 }), 0);
+  assert.equal(api.returnYards({ idp_int: 1, idp_int_ret_yd: 0 }), 0);
+  assert.equal(api.returnYards({ rec: 1, rec_yd: 52 }), 0);   // receiving yards aren't a return
+  assert.equal(api.returnYards(null), 0);
+});
+
+test('scorePlay hands the row the stats behind the points', () => {
+  // An IDP league, where the defender is scored on his own line rather than through a team defense.
+  const ld = { league: { league_id: 'L1', name: 'IDP', scoring_settings: { idp_int: 4, idp_int_ret_yd: 0.1 } }, color: '#6c8cff' };
+  const lb = player('100', 'LB', 'JAX', [myLeg(ld)]);
+  const play = { stats: [{ pid: '100', team: 'JAX', stats: { idp_int: 1, idp_int_ret_yd: 5 } }] };
+  const { for: mine } = api.scorePlay(play, new Map([['100', lb]]), []);
+  assert.equal(api.returnYards(mine[0].stats), 5);
+});
