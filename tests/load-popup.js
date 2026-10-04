@@ -22,7 +22,7 @@ const NAMES = [
   'sittingLine', 'sittingStarters',
   'lookSummary', 'lookSnapshot', 'agoText', 'sinceParts', 'sinceClass',
   'headline', 'headlinePts', 'headlineProj', 'legPtsVary', 'legProjVary', 'samePts',
-  'liveProj', 'sleeperLiveProj',
+  'liveProj', 'sleeperLiveProj', 'defLiveProj',
   'sortGames', 'GAME_SORTS', 'timeWindows', 'marginText', 'leadState', 'trackLeads', 'leadFlips', 'leadSeen', 'flipWhen',
 ];
 const EXPORTS = `

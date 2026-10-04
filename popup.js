@@ -651,12 +651,23 @@ function sleeperLiveProj(cur, proj, secs) {
   return base + (1 - left) * (ceiling - base);
 }
 
-// A player's projection as it stands: before kickoff the pre-game number, during his game Sleeper's
-// blend of it with what he's actually doing, and his real points once the game is over. `noSchedule`
-// means the scoreboard didn't load, so nobody has kicked off as far as we know.
-function liveProj(pts, proj, game, noSchedule) {
+// A team defense isn't scoring at a pace. Both Sleeper and ESPN credit it with "0 points allowed"
+// and "under 100 yards allowed" from the opening kickoff — 10 points it hasn't really earned — and
+// take them back as the opponent moves the ball, so its score can fall as well as rise. Running the
+// usual blend over that projects a defense sitting on 13 at 0-0 to finish around 20. Instead walk
+// from the pre-game projection to what it actually has as the clock runs: the pre-game number at
+// kickoff, its real score at the whistle, and no early spike in between.
+function defLiveProj(cur, proj, secs) {
+  const left = Math.max(0, Math.min(1, secs / 3600));
+  return proj * left + cur * (1 - left);
+}
+
+// A player's projection as it stands: before kickoff the pre-game number, during his game a blend of
+// it with what he's actually doing, and his real points once the game is over. `noSchedule` means the
+// scoreboard didn't load, so nobody has kicked off as far as we know.
+function liveProj(pts, proj, game, noSchedule, pos) {
   const secs = !game && noSchedule ? 3600 : secondsLeft(game);
-  const v = sleeperLiveProj(pts, proj, secs);
+  const v = pos === 'DEF' ? defLiveProj(pts, proj, secs) : sleeperLiveProj(pts, proj, secs);
   return Number.isFinite(v) ? v : proj; // no game at all (a bye): leave the pre-game number alone
 }
 
@@ -703,7 +714,7 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
     pl.rank = ranks?.map[pl.pid] ?? null;
     pl.game = games[pl.info.team] || null;
     pl.verdict = pl.net > 0 ? 'cheer' : pl.net < 0 ? 'boo' : 'hedge';
-    for (const l of pl.legs) l.projLive = liveProj(l.pts, l.proj, pl.game, noSchedule);
+    for (const l of pl.legs) l.projLive = liveProj(l.pts, l.proj, pl.game, noSchedule, pl.info.pos);
     pl.projShown = headlineProj(pl.legs);
     pl.ptsShown = headlinePts(pl.legs);
   }
@@ -720,7 +731,7 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
         const game = games[info.team] || null;
         const pts = s.m.players_points?.[pid] ?? 0;
         return { pid, slot, info, rank: ranks?.map[pid] ?? null, game, pts, proj: pj,
-          projLive: liveProj(pts, pj, game, noSchedule), src: ptsSrc(ld, s.m, pid), lid: ld.league.league_id };
+          projLive: liveProj(pts, pj, game, noSchedule, info.pos), src: ptsSrc(ld, s.m, pid), lid: ld.league.league_id };
       });
     }
   }
@@ -751,8 +762,7 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
         const g = players.get(pid)?.game;
         const pts = m.players_points?.[pid] ?? 0;
         current += pts;
-        const secs = !g && noSchedule ? 3600 : secondsLeft(g); // no scoreboard → assume not started
-        total += sleeperLiveProj(pts, leagueProj(proj[pid]?.stats, scoring), secs) || pts;
+        total += liveProj(pts, leagueProj(proj[pid]?.stats, scoring), g, noSchedule, players.get(pid)?.info.pos) || pts;
         if (noSchedule || (g && g.state !== 'post')) open++;
       }
       return { current, total, open };
