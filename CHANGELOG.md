@@ -4,17 +4,17 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
-## Unreleased
+## 1.0.22 — 2026-10-04
 
 ### New
-- **Order games within a kickoff window:** a Settings option (Display) — **Projected points in play** or **Players in the game**, counting both sides of your matchups. The windows themselves never move: Thursday, Sunday 1:00, the 4:05/4:25 block, Sunday night, Monday, the same windows the time filter uses, with live games first and byes last. The option only sorts the games inside one window. Until now they sat in whatever order your players happened to load in, so a 1:00 game with seven of your players could sit below one with a single player.
+- **Order games within a kickoff window:** a Settings option (Display) — **Projected points in play** or **Players in the game**, counting both sides of your matchups. The windows themselves never move: Thursday, Sunday 1:00, the 4:05/4:25 block, Sunday night, Monday, the same windows the time filter uses, with live games first and byes last. The option only sorts the games inside one window. Until now they sat in whatever order your players happened to load in, so a 1:00 game with seven of your players could sit below one with a single player. (#79)
 
 ### Changed
-- **Where you stand moved up to the verdict:** the top right of a league card now reads **"Projected win (+17.9), Now (+1.5)"** — where the matchup is heading, then where it stands. It used to sit beside your score. Green when you're up and red when you're down, so a card can say it's projected to win in green while **Now (−18.8)** sits in red beside it.
-- **(tied) beside your score** no longer shows when neither team has scored.
+- **Where you stand moved up to the verdict:** the top right of a league card now reads **"Projected win (+17.9), Now (+1.5)"** — where the matchup is heading, then where it stands. It used to sit beside your score. Green when you're up and red when you're down, so a card can say it's projected to win in green while **Now (−18.8)** sits in red beside it. (#81)
+- **(tied) beside your score** no longer shows when neither team has scored. It said nothing on a card reading 0 against 0, which is every league where nobody has played yet. A real tie, both sides on the same number above zero, still shows. (#80)
 
 ### Fixed
-- **A team defense's in-game projection.** Sleeper and ESPN both credit a D/ST with "0 points allowed" and "under 100 yards allowed" from the opening kickoff — about 10 points it gives back as the opponent moves the ball — and the projection was reading that as a scoring pace: a defense sitting on 13 at 0–0 was projected to finish near 20. A defense is now walked from its pre-game projection to the score it actually has as the clock runs, landing on its real points at the whistle. Every other position is unchanged. On Sleeper leagues this fed the card's projected total and win chance as well, so those ran a few points high whenever a defense was playing. It said nothing on a card reading 0 against 0, which is every league where nobody has played yet. A real tie, both sides on the same number above zero, still shows.
+- **A team defense's in-game projection.** Sleeper and ESPN both credit a D/ST with "0 points allowed" and "under 100 yards allowed" from the opening kickoff — about 10 points it gives back as the opponent moves the ball — and the projection was reading that as a scoring pace: a defense sitting on 13 at 0–0 was projected to finish near 20. A defense is now walked from its pre-game projection to the score it actually has as the clock runs, landing on its real points at the whistle. Every other position is unchanged. On Sleeper leagues this fed the card's projected total and win chance as well, so those ran a few points high whenever a defense was playing. (#82)
 
 ## 1.0.21 — 2026-10-01
 
