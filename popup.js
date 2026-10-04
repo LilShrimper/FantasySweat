@@ -948,8 +948,7 @@ function leagueCard(ld) {
         h('span', { class: 'pts', style: `color:${winColor(1 - p)}`, title: totalNote(ld, opp) }, fmtPts(opp.m.points)))), // their side of the odds
     h('div', { class: 'bar', title: `Win chance ${Math.round(p * 100)}%` }, h('i', { style: `width:${(p * 100).toFixed(1)}%` })),
     leadLine(ld),
-    playingLine(ld),
-    toPlayLine(ld),
+    cardLines(ld),
     emptyLine(ld),
     byeLine(ld),
     sittingLine(ld));
@@ -1041,8 +1040,24 @@ function countLine(ld, label, pick, title) {
     h('span', { class: 'r' }, cell(theirs)));
 }
 
-const playingLine = (ld) => countLine(ld, 'currently playing', playingNow, 'Starters whose games are under way');
+const playingLine = (ld) => countLine(ld, 'in play', playingNow, 'Starters whose games are under way');
 const toPlayLine = (ld) => countLine(ld, 'left to play', leftToPlay, 'Starters whose games haven’t kicked off yet');
+
+// Which of the two counts a league card carries, from Settings. Some of them depend on the tab
+// you're on, since Live plays is where what's on the field right now matters most.
+const LINE_MODES = {
+  left: { playing: () => false, toPlay: () => true },
+  play: { playing: () => true, toPlay: () => false },
+  'play-live': { playing: (live) => live, toPlay: (live) => !live },
+  'both-live': { playing: (live) => live, toPlay: () => true },
+  both: { playing: () => true, toPlay: () => true },
+};
+
+function cardLines(ld) {
+  const mode = LINE_MODES[cardCounts] || LINE_MODES.left;
+  const live = view === 'plays';
+  return [mode.playing(live) ? playingLine(ld) : null, mode.toPlay(live) ? toPlayLine(ld) : null];
+}
 
 // Where you stand against their score **right now** — never against a projection, which moves all
 // afternoon, so being "past" one means nothing. Green when you're up, red when you're down. The
@@ -2109,6 +2124,7 @@ let playerSort = 'points'; // By player order: 'points' or 'position' (remembere
 let sortClose = false;     // Settings: league cards ordered by closest matchup (win chance nearest 50%)
 let tagTitles = false;     // Settings: league cards titled with the league's tag instead of its name
 let gameSort = 'points';   // Settings: order within a kickoff window — 'points' or 'players'
+let cardCounts = 'left';   // Settings: which counts a league card carries — see LINE_MODES
 
 // Re-run the cheer/boo math using only the picked leagues' matchups; drops games with nothing at stake there.
 // keepAll (for leagues hidden in Settings): keep every game, so the rest looks just like "all leagues".
@@ -2333,6 +2349,7 @@ async function showSetup() {
   $('#sortClose').checked = sortClose;
   $('#tagTitles').checked = tagTitles;
   $('#gameSort').value = gameSort;
+  $('#cardCounts').value = cardCounts;
 
   // One row per league (once leagues have loaded): show/hide, its tag, and — folded away —
   // a nickname box for every team in it.
@@ -2455,6 +2472,7 @@ const settingsSnapshot = () => JSON.stringify([
   espnDraft,
   [...$('#setup').querySelectorAll('input')].map((i) => (i.type === 'checkbox' ? i.checked : i.value)),
   $('#gameSort').value,
+  $('#cardCounts').value,
 ]);
 
 // Back to the main view without saving — the logo, or ⚙ again. If anything was changed, ask first.
@@ -2511,6 +2529,8 @@ $('#setup').addEventListener('submit', async (e) => {
   await store.set('tagTitles', tagTitles);
   gameSort = GAME_SORTS[$('#gameSort').value] ? $('#gameSort').value : 'points';
   await store.set('gameSort', gameSort);
+  cardCounts = LINE_MODES[$('#cardCounts').value] ? $('#cardCounts').value : 'left';
+  await store.set('cardCounts', cardCounts);
   const userChanged = name !== cleanUsername(await store.get('username')); // none saved reads as ''
   await store.set('username', name);
   hideSetup();
@@ -2742,6 +2762,8 @@ function markDevCopy() {
   tagTitles = (await store.get('tagTitles')) === true;
   const savedSort = await store.get('gameSort');
   gameSort = GAME_SORTS[savedSort] ? savedSort : 'points'; // an old or unknown value falls back
+  const savedCounts = await store.get('cardCounts');
+  cardCounts = LINE_MODES[savedCounts] ? savedCounts : 'left';
   const savedLeagues = await store.get('leagues');
   selectedLeagues = Array.isArray(savedLeagues) ? savedLeagues : [];
   nicknames = (await store.get('nicknames')) || {};

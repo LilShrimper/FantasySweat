@@ -559,3 +559,23 @@ test('slimPlay carries the corrected yardage through to scoring', () => {
   assert.ok(Math.abs(api.leagueProj([...play.stats][0].stats, ppr) - 6.2) < 1e-9);
   assert.ok(Math.abs(api.leagueProj([...play.stats][1].stats, ppr) - 2.08) < 1e-9);
 });
+
+test('the Settings option picks which counts a card carries, by tab', () => {
+  const shown = (mode, onLivePlays) => {
+    const m = api.LINE_MODES[mode];
+    return [m.playing(onLivePlays) ? 'in play' : null, m.toPlay(onLivePlays) ? 'left to play' : null].filter(Boolean);
+  };
+  // elsewhere, then on the Live plays tab
+  assert.deepEqual(shown('left', false), ['left to play']);
+  assert.deepEqual(shown('left', true), ['left to play']);          // the default, unchanged by tab
+  assert.deepEqual(shown('play', false), ['in play']);
+  assert.deepEqual(shown('play', true), ['in play']);
+  assert.deepEqual(shown('play-live', false), ['left to play']);
+  assert.deepEqual(shown('play-live', true), ['in play']);          // swaps on Live plays
+  assert.deepEqual(shown('both-live', false), ['left to play']);
+  assert.deepEqual(shown('both-live', true), ['in play', 'left to play']);
+  assert.deepEqual(shown('both', false), ['in play', 'left to play']);
+  assert.deepEqual(shown('both', true), ['in play', 'left to play']);
+  // Every option offered in Settings is one the card knows how to draw.
+  assert.deepEqual(Object.keys({ ...api.LINE_MODES }).sort(), ['both', 'both-live', 'left', 'play', 'play-live']);
+});

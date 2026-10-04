@@ -23,7 +23,7 @@ const NAMES = [
   'lookSummary', 'lookSnapshot', 'agoText', 'sinceParts', 'sinceClass',
   'headline', 'headlinePts', 'headlineProj', 'legPtsVary', 'legProjVary', 'samePts',
   'liveProj', 'sleeperLiveProj', 'defLiveProj',
-  'sortGames', 'GAME_SORTS', 'timeWindows', 'marginText', 'leadState', 'trackLeads', 'leadFlips', 'leadSeen', 'flipWhen',
+  'sortGames', 'GAME_SORTS', 'timeWindows', 'LINE_MODES', 'marginText', 'leadState', 'trackLeads', 'leadFlips', 'leadSeen', 'flipWhen',
 ];
 const EXPORTS = `
 globalThis.__api = {
