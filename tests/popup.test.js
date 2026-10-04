@@ -577,5 +577,6 @@ test('the Settings option picks which counts a card carries, by tab', () => {
   assert.deepEqual(shown('both', false), ['in play', 'yet to play']);
   assert.deepEqual(shown('both', true), ['in play', 'yet to play']);
   // Every option offered in Settings is one the card knows how to draw.
-  assert.deepEqual(Object.keys({ ...api.LINE_MODES }).sort(), ['both', 'both-live', 'play', 'play-live', 'yet']);
+  assert.deepEqual([...shown('none', false), ...shown('none', true)], []); // the card carries neither
+  assert.deepEqual(Object.keys({ ...api.LINE_MODES }).sort(), ['both', 'both-live', 'none', 'play', 'play-live', 'yet']);
 });

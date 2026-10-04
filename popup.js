@@ -1051,6 +1051,7 @@ const LINE_MODES = {
   'play-live': { playing: (live) => live, toPlay: (live) => !live },
   'both-live': { playing: (live) => live, toPlay: () => true },
   both: { playing: () => true, toPlay: () => true },
+  none: { playing: () => false, toPlay: () => false },
 };
 
 function cardLines(ld) {
