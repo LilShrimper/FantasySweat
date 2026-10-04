@@ -779,8 +779,7 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
   for (const g of new Set(Object.values(games))) {
     if (!gameMap.has(g.id)) gameMap.set(g.id, { ...g, players: [] });
   }
-  const stateRank = { in: 0, pre: 1, post: 2 };
-  const gameList = [...gameMap.values()].sort((a, b) => stateRank[a.state] - stateRank[b.state] || a.date - b.date);
+  const gameList = [...gameMap.values()].sort((a, b) => STATE_RANK[a.state] - STATE_RANK[b.state] || a.date - b.date);
   for (const g of gameList) {
     g.stake = g.players.reduce((s, p) => s + Math.abs(p.impact), 0);
     g.projStake = projStakeOf(g.players);
@@ -1260,8 +1259,28 @@ function gameCard(g) {
     sideColumns(sides));
 }
 
+// Game cards: live first, then games to come, then finals, with byes last whatever happens. Within
+// one of those groups the Settings option decides: kickoff time (which is what the model is already
+// in), the projected points you have riding on the game, or how many of your players are in it,
+// counting both sides. Games tied on the chosen number fall back to kickoff time.
+const STATE_RANK = { in: 0, pre: 1, post: 2 };
+const GAME_SORTS = {
+  time: null,
+  points: (a, b) => b.projStake - a.projStake,
+  players: (a, b) => b.players.length - a.players.length || b.projStake - a.projStake,
+};
+
+function sortGames(games, how) {
+  const by = GAME_SORTS[how];
+  const real = games.filter((g) => !g.none);
+  const byes = games.filter((g) => g.none);
+  if (!by) return [...real, ...byes];
+  const sorted = [...real].sort((a, b) => STATE_RANK[a.state] - STATE_RANK[b.state] || by(a, b) || a.date - b.date);
+  return [...sorted, ...byes];
+}
+
 function renderGames(model) {
-  const games = model.games.filter(matchesFilter);
+  const games = sortGames(model.games.filter(matchesFilter), gameSort);
   return games.length ? h('div', { class: 'games' }, games.map(gameCard)) : emptyFiltered();
 }
 
@@ -2031,6 +2050,7 @@ let pickedWeek = null;     // week chosen in the dropdown; null = follow the NFL
 let playerSort = 'points'; // By player order: 'points' or 'position' (remembered)
 let sortClose = false;     // Settings: league cards ordered by closest matchup (win chance nearest 50%)
 let tagTitles = false;     // Settings: league cards titled with the league's tag instead of its name
+let gameSort = 'time';     // Settings: game card order — 'time', 'points' or 'players'
 
 // Re-run the cheer/boo math using only the picked leagues' matchups; drops games with nothing at stake there.
 // keepAll (for leagues hidden in Settings): keep every game, so the rest looks just like "all leagues".
@@ -2254,6 +2274,7 @@ async function showSetup() {
   $('#cancelSetup').hidden = !current; // nothing to go back to on first run (ESPN-only users included)
   $('#sortClose').checked = sortClose;
   $('#tagTitles').checked = tagTitles;
+  $('#gameSort').value = gameSort;
 
   // One row per league (once leagues have loaded): show/hide, its tag, and — folded away —
   // a nickname box for every team in it.
@@ -2370,9 +2391,12 @@ function hideSetup() {
 
 // Settings as it stood when it opened: the ESPN list plus every box and checkbox in the form.
 let setupSnapshot = '';
+// The ESPN team dropdowns aren't in here: their options load a moment after Settings opens, so their
+// value changes on its own and would look like an edit. They're covered by espnDraft instead.
 const settingsSnapshot = () => JSON.stringify([
   espnDraft,
   [...$('#setup').querySelectorAll('input')].map((i) => (i.type === 'checkbox' ? i.checked : i.value)),
+  $('#gameSort').value,
 ]);
 
 // Back to the main view without saving — the logo, or ⚙ again. If anything was changed, ask first.
@@ -2427,6 +2451,8 @@ $('#setup').addEventListener('submit', async (e) => {
   await store.set('sortClose', sortClose);
   tagTitles = $('#tagTitles').checked;
   await store.set('tagTitles', tagTitles);
+  gameSort = GAME_SORTS[$('#gameSort').value] !== undefined ? $('#gameSort').value : 'time';
+  await store.set('gameSort', gameSort);
   const userChanged = name !== cleanUsername(await store.get('username')); // none saved reads as ''
   await store.set('username', name);
   hideSetup();
@@ -2656,6 +2682,8 @@ function markDevCopy() {
   playerSort = (await store.get('playerSort')) === 'position' ? 'position' : 'points';
   sortClose = (await store.get('sortClose')) === true;
   tagTitles = (await store.get('tagTitles')) === true;
+  const savedSort = await store.get('gameSort');
+  gameSort = GAME_SORTS[savedSort] !== undefined ? savedSort : 'time'; // an old or unknown value falls back
   const savedLeagues = await store.get('leagues');
   selectedLeagues = Array.isArray(savedLeagues) ? savedLeagues : [];
   nicknames = (await store.get('nicknames')) || {};

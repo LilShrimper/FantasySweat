@@ -4,6 +4,11 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### New
+- **Order game cards your way:** a Settings option (Display) — **Kickoff time** as before, **Projected points in play**, or **Players in the game**, counting both sides of your matchups. Games tied on your choice fall back to kickoff time. Live games still come first and byes last whichever you pick. Until now, games kicking off at the same time sat in whatever order your players happened to load in, so a 1:00 game with seven of your players could sit below one with a single player.
+
 ## 1.0.21 — 2026-10-01
 
 ### Fixed

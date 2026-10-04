@@ -56,6 +56,14 @@
       <input type="checkbox" id="tagTitles">
       <span>Title league cards with the league's nickname <span class="opt">(leagues without a nickname keep their name)</span></span>
     </label>
+    <label class="check-row pick-row" for="gameSort">
+      <span>Order game cards by <span class="opt">(live games stay first, byes last)</span></span>
+      <select id="gameSort">
+        <option value="time">Kickoff time</option>
+        <option value="points">Projected points in play</option>
+        <option value="players">Players in the game</option>
+      </select>
+    </label>
     <div class="row actions">
       <button type="button" id="cancelSetup" class="ghost" hidden>Cancel</button>
       <button type="submit" class="primary">Save</button>

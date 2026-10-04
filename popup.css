@@ -93,9 +93,12 @@ button, select, input { font: inherit; color: inherit; }
   display: grid; grid-template-columns: 1fr 1.4fr auto; align-items: center; gap: 6px;
   padding: 4px 0 4px 8px; margin-bottom: 4px; border-left: 3px solid var(--accent);
 }
-.espn-row select {
+.espn-row select, .pick-row select {
   min-width: 0; height: 30px; padding: 0 6px; border-radius: 7px; border: 1px solid var(--line); background: var(--panel);
 }
+/* A Display setting that picks from a list rather than toggling: label left, dropdown right. */
+.setup label.pick-row { justify-content: space-between; gap: 10px; }
+.pick-row select { flex: none; max-width: 55%; color: var(--text); }
 .ghost.x { padding: 4px 9px; }
 .espn-add { margin-top: 2px; }
 

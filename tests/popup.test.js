@@ -457,3 +457,28 @@ test('the margin says which way it goes, so the card can color it', () => {
   assert.equal(api.marginText(down, up).tone, 'behind');  // red
   assert.equal(api.marginText(up, same).tone, 'tied');    // plain
 });
+
+test('game cards sort by the Settings option, inside live-first order', () => {
+  const g = (id, state, date, players, projStake) => ({ id, state, date, players: new Array(players).fill(0), projStake });
+  //        id        state  kickoff  players  proj pts in play
+  const list = [
+    g('live-small', 'in', 10, 2, 10),
+    g('one', 'pre', 100, 3, 40),
+    g('two', 'pre', 100, 7, 25),
+    g('three', 'pre', 200, 1, 90),
+    g('done', 'post', 5, 9, 99),
+    { id: 'bye', none: true, players: [] },
+  ];
+  const ids = (how) => api.sortGames(list, how).map((x) => x.id);
+  // Time: the model's own order, untouched.
+  assert.deepEqual([...ids('time')], ['live-small', 'one', 'two', 'three', 'done', 'bye']);
+  // Points: most at stake first, but a live game still outranks a bigger one that hasn't kicked off,
+  // and the finished game stays at the bottom however much was riding on it.
+  assert.deepEqual([...ids('points')], ['live-small', 'three', 'one', 'two', 'done', 'bye']);
+  // Players: most of your players first; 'one' and 'two' swap because 7 beats 3.
+  assert.deepEqual([...ids('players')], ['live-small', 'two', 'one', 'three', 'done', 'bye']);
+  // An unknown saved value behaves like 'time' rather than throwing.
+  assert.deepEqual([...ids('nonsense')], [...ids('time')]);
+  // Sorting doesn't disturb the list it was handed.
+  assert.equal(list[1].id, 'one');
+});
