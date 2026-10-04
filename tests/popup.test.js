@@ -512,3 +512,42 @@ test('a defense is walked to its score, not extrapolated from an early shutout',
   assert.equal(api.liveProj(13, 6.19, half, false, 'WR'), api.sleeperLiveProj(13, 6.19, 1800));
   assert.equal(api.liveProj(13, 6.19, half, false), api.sleeperLiveProj(13, 6.19, 1800));
 });
+
+test('a play whose stats run the other way is read from its description', () => {
+  // The real one: Sleeper sent -37 for a 52-yard catch, so it scored as a loss and the gain never
+  // showed up on Live plays.
+  const desc = 'Lamar Jackson 52 Yd pass complete to Zay Flowers';
+  assert.equal(api.playYards(desc), 52);
+  const fixed = api.fixYards({ rec: 1, rec_tgt: 1, rec_yar: -37, rec_yd: -37 }, 52);
+  assert.deepEqual({ ...fixed }, { rec: 1, rec_tgt: 1, rec_yar: 52, rec_yd: 52 });
+  assert.deepEqual({ ...api.fixYards({ pass_att: 1, pass_cmp: 1, pass_yd: -37 }, 52) },
+    { pass_att: 1, pass_cmp: 1, pass_yd: 52 });
+  // A genuine loss agrees with its description, so nothing is touched.
+  const loss = { rec: 1, rec_tgt: 1, rec_yar: 2, rec_yd: -3 };
+  assert.deepEqual({ ...api.fixYards(loss, api.playYards('Jacoby Brissett -3 Yd pass complete to Trey McBride')) }, loss);
+  // Normal spotting drift of a yard or two is left alone, in both directions.
+  assert.deepEqual({ ...api.fixYards({ rush_yd: 1 }, -2) }, { rush_yd: 1 });
+  assert.deepEqual({ ...api.fixYards({ rec_yd: 6 }, 7) }, { rec_yd: 6 });
+  // A touchdown wiped out by a penalty: the stats are right and the description is stale, and since
+  // they run the same way the stats keep their number.
+  assert.deepEqual({ ...api.fixYards({ rush_att: 1, rush_yd: 5 }, 39) }, { rush_att: 1, rush_yd: 5 });
+  // No yardage in the description (a kickoff, an extra point): nothing to compare against.
+  assert.equal(api.playYards('Two Point Conversion attempt failed'), null);
+  assert.deepEqual({ ...api.fixYards({ rec_yd: -37 }, null) }, { rec_yd: -37 });
+});
+
+test('slimPlay carries the corrected yardage through to scoring', () => {
+  const play = api.slimPlay({
+    play_id: 'p9',
+    metadata: { fantasy_description: 'Lamar Jackson 52 Yd pass complete to Zay Flowers', sequence: '1' },
+    play_stats: [
+      { player: { player_id: '9997', team: 'BAL' }, stats: { rec: 1, rec_tgt: 1, rec_yd: -37 } },
+      { player: { player_id: '4881', team: 'BAL' }, stats: { pass_att: 1, pass_cmp: 1, pass_yd: -37 } },
+    ],
+  });
+  assert.equal([...play.stats][0].stats.rec_yd, 52);
+  // Full PPR: a catch plus 5.2 for the yards, instead of the −2.7 the raw row produced.
+  const ppr = { rec: 1, rec_yd: 0.1, pass_yd: 0.04 };
+  assert.ok(Math.abs(api.leagueProj([...play.stats][0].stats, ppr) - 6.2) < 1e-9);
+  assert.ok(Math.abs(api.leagueProj([...play.stats][1].stats, ppr) - 2.08) < 1e-9);
+});

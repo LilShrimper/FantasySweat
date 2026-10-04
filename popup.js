@@ -1686,6 +1686,33 @@ let lastPlays = new Map(); // pid → his latest scoring play, worked out on eac
 const PLAY_KEEP = 300;  // plays kept per game
 const PLAYS_SHOWN = 15; // Live plays is a snapshot: latest plays per column, not the full history
 
+// The yardage in a play's own description: "Lamar Jackson 52 Yd pass complete to Zay Flowers" → 52.
+const playYards = (desc) => {
+  const m = /(-?\d+)\s*Yd\b/i.exec(desc || '');
+  return m ? Number(m[1]) : null;
+};
+const YARD_KEYS = ['rec_yd', 'pass_yd', 'rush_yd'];
+
+// Sleeper's feed sometimes puts a correction in a play's stat row instead of the play's own numbers.
+// "Lamar Jackson 52 Yd pass complete to Zay Flowers" arrived with pass_yd and rec_yd of −37 — the
+// amount an earlier version of the play was marked down by, not what happened — which scored the
+// catch at −2.7 and meant the 52-yard gain never appeared on Live plays at all.
+//
+// A play's description and its stats normally agree: over a full week, 661 of 684 rows carrying
+// yardage matched exactly and 21 more drifted by a yard or three (where the stats are right and the
+// description is stale, as with a touchdown wiped out by a holding penalty). Only a row running the
+// *other way* by a distance is the feed correcting itself, so that's the one case where the
+// description wins. Flowers' official line for the week — 108 receiving yards — comes out exactly
+// right once the play is read as the 52 it says it was.
+function fixYards(stats, descYd) {
+  if (descYd == null) return stats;
+  const bad = YARD_KEYS.find((k) => stats[k] != null
+    && Math.sign(stats[k]) !== Math.sign(descYd) && Math.abs(stats[k] - descYd) > 20);
+  if (!bad) return stats;
+  const wrong = stats[bad]; // every yardage field on the row carries the same wrong number
+  return Object.fromEntries(Object.entries(stats).map(([k, v]) => [k, v === wrong ? descYd : v]));
+}
+
 function slimPlay(p) {
   const m = p.metadata || {};
   const mins = m.time_remaining_minutes;
@@ -1701,7 +1728,7 @@ function slimPlay(p) {
     dist: Number(m.distance) || 0,
     spot: m.yard_line_territory && m.yard_line != null ? `${m.yard_line_territory} ${m.yard_line}` : '',
     stats: (p.play_stats || [])
-      .map((s) => ({ pid: s.player?.player_id, team: s.player?.team, stats: s.stats || {} }))
+      .map((s) => ({ pid: s.player?.player_id, team: s.player?.team, stats: fixYards(s.stats || {}, playYards(m.fantasy_description || m.description)) }))
       .filter((s) => s.pid),
   };
 }
