@@ -4,6 +4,11 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### Fixed
+- **Lead changes stay with their week.** Looking at an earlier week and coming back made every league card flash "Took the lead" or "Lost the lead", because the lead each league was in was remembered without which week it belonged to — so a finished week's scores read as this week's lead turning over.
+
 ## 1.0.23 — 2026-10-04
 
 ### New
