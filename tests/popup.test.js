@@ -411,7 +411,7 @@ test('the margin beside your score is measured against their score, never their 
   assert.doesNotMatch(api.marginText(side(125, [], 120), opp).title, /clear/);
 });
 
-test('"left to play" counts everyone who can still score, with the positions', () => {
+test('"yet to play" counts everyone who can still score, with the positions', () => {
   const starter = (state, pos) => ({ pid: pos + state, slot: pos, info: { pos }, game: { state } });
   const side = {
     roster: [
@@ -422,11 +422,19 @@ test('"left to play" counts everyone who can still score, with the positions', (
       { pid: 'bye', slot: 'TE', info: { pos: 'TE' }, game: null },            // nor a player on bye
     ],
   };
-  const left = api.leftToPlay(side);
-  assert.equal(left.n, 5);                                   // the WR whose game is over is out
-  assert.equal(left.text, '1 QB, 2 RB, 1 K, 1 D/ST');        // in Sleeper's position order
-  assert.equal(api.leftToPlay({ roster: [starter('post', 'QB')] }).n, 0);
-  assert.equal(api.leftToPlay(null).n, 0);
+  // The two lines split the starters who can still score: on the field now, and not kicked off yet.
+  const playing = api.playingNow(side);
+  assert.equal(playing.n, 2);
+  assert.equal(playing.text, '1 RB, 1 K');
+  const left = api.yetToPlay(side);
+  assert.equal(left.n, 3);                            // the two who are playing have moved off it
+  assert.equal(left.text, '1 QB, 1 RB, 1 D/ST');      // in Sleeper's position order
+  assert.equal(api.canStillScore(side), 5);           // and together they're everyone who's left
+  // The WR whose game is finished is in neither, and nor is the bench, the empty spot or the bye.
+  assert.equal(api.playingNow({ roster: [starter('post', 'QB')] }).n, 0);
+  assert.equal(api.yetToPlay({ roster: [starter('post', 'QB')] }).n, 0);
+  assert.equal(api.yetToPlay(null).n, 0);
+  assert.equal(api.canStillScore(null), 0);
 });
 
 test('a lead change is noted once, and 0-0 at kickoff is not one', () => {
@@ -550,4 +558,25 @@ test('slimPlay carries the corrected yardage through to scoring', () => {
   const ppr = { rec: 1, rec_yd: 0.1, pass_yd: 0.04 };
   assert.ok(Math.abs(api.leagueProj([...play.stats][0].stats, ppr) - 6.2) < 1e-9);
   assert.ok(Math.abs(api.leagueProj([...play.stats][1].stats, ppr) - 2.08) < 1e-9);
+});
+
+test('the Settings option picks which counts a card carries, by tab', () => {
+  const shown = (mode, onLivePlays) => {
+    const m = api.LINE_MODES[mode];
+    return [m.playing(onLivePlays) ? 'in play' : null, m.toPlay(onLivePlays) ? 'yet to play' : null].filter(Boolean);
+  };
+  // elsewhere, then on the Live plays tab
+  assert.deepEqual(shown('yet', false), ['yet to play']);
+  assert.deepEqual(shown('yet', true), ['yet to play']);          // the default, unchanged by tab
+  assert.deepEqual(shown('play', false), ['in play']);
+  assert.deepEqual(shown('play', true), ['in play']);
+  assert.deepEqual(shown('play-live', false), ['yet to play']);
+  assert.deepEqual(shown('play-live', true), ['in play']);          // swaps on Live plays
+  assert.deepEqual(shown('both-live', false), ['yet to play']);
+  assert.deepEqual(shown('both-live', true), ['in play', 'yet to play']);
+  assert.deepEqual(shown('both', false), ['in play', 'yet to play']);
+  assert.deepEqual(shown('both', true), ['in play', 'yet to play']);
+  // Every option offered in Settings is one the card knows how to draw.
+  assert.deepEqual([...shown('none', false), ...shown('none', true)], []); // the card carries neither
+  assert.deepEqual(Object.keys({ ...api.LINE_MODES }).sort(), ['both', 'both-live', 'none', 'play', 'play-live', 'yet']);
 });

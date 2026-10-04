@@ -948,7 +948,7 @@ function leagueCard(ld) {
         h('span', { class: 'pts', style: `color:${winColor(1 - p)}`, title: totalNote(ld, opp) }, fmtPts(opp.m.points)))), // their side of the odds
     h('div', { class: 'bar', title: `Win chance ${Math.round(p * 100)}%` }, h('i', { style: `width:${(p * 100).toFixed(1)}%` })),
     leadLine(ld),
-    toPlayLine(ld),
+    cardLines(ld),
     emptyLine(ld),
     byeLine(ld),
     sittingLine(ld));
@@ -999,14 +999,14 @@ function byeLine(ld) {
     `⚠ ${byes.length === 1 ? 'Starter' : `${byes.length} starters`} on bye: ${names}`);
 }
 
-// "{ n: 6, text: '1 QB, 2 RB, 1 WR, 1 K, 1 D/ST' }": the starters who can still add to a side's
-// score — anyone whose game isn't over — counted by position (QB, RB, WR, TE, K, D/ST, then anything
-// else). Bench, empty lineup slots and players with no game this week don't count.
-function leftToPlay(side) {
+// "{ n: 3, text: '1 WR, 1 TE, 1 K' }": a side's starters whose game is in `state`, counted by
+// position (QB, RB, WR, TE, K, D/ST, then anything else). Bench, empty lineup slots and players with
+// no game this week never count.
+function startersIn(side, state) {
   const counts = {};
   let n = 0;
   for (const r of side?.roster || []) {
-    if (!r.pid || BENCH_SLOTS.includes(r.slot) || !r.game || r.game.state === 'post') continue;
+    if (!r.pid || BENCH_SLOTS.includes(r.slot) || r.game?.state !== state) continue;
     counts[r.info.pos] = (counts[r.info.pos] || 0) + 1;
     n++;
   }
@@ -1018,21 +1018,46 @@ function leftToPlay(side) {
   return { n, text };
 }
 
-// Under the win bar: how many starters each side has left and who they are — "6 (1 QB, 2 RB, 1 WR,
-// 1 K, 1 D/ST)". From the week's first kickoff on; before that it's just the lineup. The line goes
-// once both sides are out of players.
-function toPlayLine(ld) {
+const playingNow = (side) => startersIn(side, 'in');  // on the field right now
+const yetToPlay = (side) => startersIn(side, 'pre'); // not kicked off yet
+// Everyone who can still add to a side's score, which is both of those together.
+const canStillScore = (side) => playingNow(side).n + yetToPlay(side).n;
+
+// Under the win bar: how many starters each side has in a state and who they are — "3 (1 WR, 1 TE,
+// 1 K)". From the week's first kickoff on; before that "yet to play" is just the lineup. A line goes
+// once neither side has anyone in that state.
+function countLine(ld, label, pick, title) {
   const games = (current?.model.games || []).filter((g) => !g.none);
   if (!games.length) return null; // no schedule loaded: can't tell who has played
   if (!games.some((g) => g.state !== 'pre')) return null; // the week hasn't kicked off yet
-  const mine = leftToPlay(ld.me), theirs = leftToPlay(ld.opp);
+  const mine = pick(ld.me), theirs = pick(ld.opp);
   if (!mine.n && !theirs.n) return null;
   const cell = (x) => (x.n ? `${x.n} (${x.text})` : 'none');
-  return h('div', { class: 'to-play', title: 'Starters whose games aren’t over, so they can still score' },
+  return h('div', { class: 'to-play', title },
     h('span', null, cell(mine)),
     // The full label, even though it wraps the position lists on the longest rosters at popup width.
-    h('span', { class: 'to-play-label' }, 'left to play'),
+    h('span', { class: 'to-play-label' }, label),
     h('span', { class: 'r' }, cell(theirs)));
+}
+
+const playingLine = (ld) => countLine(ld, 'in play', playingNow, 'Starters whose games are under way');
+const toPlayLine = (ld) => countLine(ld, 'yet to play', yetToPlay, 'Starters whose games haven’t kicked off yet');
+
+// Which of the two counts a league card carries, from Settings. Some of them depend on the tab
+// you're on, since Live plays is where what's on the field right now matters most.
+const LINE_MODES = {
+  yet: { playing: () => false, toPlay: () => true },
+  play: { playing: () => true, toPlay: () => false },
+  'play-live': { playing: (live) => live, toPlay: (live) => !live },
+  'both-live': { playing: (live) => live, toPlay: () => true },
+  both: { playing: () => true, toPlay: () => true },
+  none: { playing: () => false, toPlay: () => false },
+};
+
+function cardLines(ld) {
+  const mode = LINE_MODES[cardCounts] || LINE_MODES.yet;
+  const live = view === 'plays';
+  return [mode.playing(live) ? playingLine(ld) : null, mode.toPlay(live) ? toPlayLine(ld) : null];
 }
 
 // Where you stand against their score **right now** — never against a projection, which moves all
@@ -1043,7 +1068,7 @@ function marginText(me, opp) {
   const have = me?.m?.points || 0;
   const theirs = opp?.m?.points || 0;
   const diff = have - theirs;
-  const theirLeft = leftToPlay(opp).n;
+  const theirLeft = canStillScore(opp); // on the field plus still to come
   const moving = theirLeft
     ? `${theirLeft} of their starters can still score, so it can still move`
     : 'their starters are done, so that\'s the gap for good';
@@ -2100,6 +2125,7 @@ let playerSort = 'points'; // By player order: 'points' or 'position' (remembere
 let sortClose = false;     // Settings: league cards ordered by closest matchup (win chance nearest 50%)
 let tagTitles = false;     // Settings: league cards titled with the league's tag instead of its name
 let gameSort = 'points';   // Settings: order within a kickoff window — 'points' or 'players'
+let cardCounts = 'yet';   // Settings: which counts a league card carries — see LINE_MODES
 
 // Re-run the cheer/boo math using only the picked leagues' matchups; drops games with nothing at stake there.
 // keepAll (for leagues hidden in Settings): keep every game, so the rest looks just like "all leagues".
@@ -2324,6 +2350,7 @@ async function showSetup() {
   $('#sortClose').checked = sortClose;
   $('#tagTitles').checked = tagTitles;
   $('#gameSort').value = gameSort;
+  $('#cardCounts').value = cardCounts;
 
   // One row per league (once leagues have loaded): show/hide, its tag, and — folded away —
   // a nickname box for every team in it.
@@ -2446,6 +2473,7 @@ const settingsSnapshot = () => JSON.stringify([
   espnDraft,
   [...$('#setup').querySelectorAll('input')].map((i) => (i.type === 'checkbox' ? i.checked : i.value)),
   $('#gameSort').value,
+  $('#cardCounts').value,
 ]);
 
 // Back to the main view without saving — the logo, or ⚙ again. If anything was changed, ask first.
@@ -2502,6 +2530,8 @@ $('#setup').addEventListener('submit', async (e) => {
   await store.set('tagTitles', tagTitles);
   gameSort = GAME_SORTS[$('#gameSort').value] ? $('#gameSort').value : 'points';
   await store.set('gameSort', gameSort);
+  cardCounts = LINE_MODES[$('#cardCounts').value] ? $('#cardCounts').value : 'yet';
+  await store.set('cardCounts', cardCounts);
   const userChanged = name !== cleanUsername(await store.get('username')); // none saved reads as ''
   await store.set('username', name);
   hideSetup();
@@ -2733,6 +2763,8 @@ function markDevCopy() {
   tagTitles = (await store.get('tagTitles')) === true;
   const savedSort = await store.get('gameSort');
   gameSort = GAME_SORTS[savedSort] ? savedSort : 'points'; // an old or unknown value falls back
+  const savedCounts = await store.get('cardCounts');
+  cardCounts = LINE_MODES[savedCounts] ? savedCounts : 'yet';
   const savedLeagues = await store.get('leagues');
   selectedLeagues = Array.isArray(savedLeagues) ? savedLeagues : [];
   nicknames = (await store.get('nicknames')) || {};

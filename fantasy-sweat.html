@@ -56,6 +56,17 @@
       <input type="checkbox" id="tagTitles">
       <span>Title league cards with the league's nickname <span class="opt">(leagues without a nickname keep their name)</span></span>
     </label>
+    <label class="check-row pick-row" for="cardCounts">
+      <span>On league cards, show <span class="opt">(who's on the field now, and who hasn't kicked off)</span></span>
+      <select id="cardCounts">
+        <option value="yet">Only yet to play</option>
+        <option value="play">Only in play</option>
+        <option value="play-live">In play on the Live plays tab, yet to play elsewhere</option>
+        <option value="both-live">Both on the Live plays tab, yet to play elsewhere</option>
+        <option value="both">Always both</option>
+        <option value="none">None</option>
+      </select>
+    </label>
     <label class="check-row pick-row" for="gameSort">
       <span>Order games within a kickoff window by <span class="opt">(windows stay in order: Thursday, 1:00, 4:00, Sunday night, Monday)</span></span>
       <select id="gameSort">
