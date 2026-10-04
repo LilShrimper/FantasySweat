@@ -1115,8 +1115,12 @@ function marginNow(ld) {
 
 // ---------- lead changes while you're watching ----------
 const LEAD_NOTE_MS = 10 * 60_000;
-const leadSeen = new Map();  // league id → the last decisive lead, 'up' or 'down'
-const leadFlips = new Map(); // league id → { up, at } for the most recent change
+// Keyed by week as well as league: looking back at an earlier week and returning used to read that
+// week's final scores as this week's lead changing hands, so every card flashed "Took the lead" on
+// the way back.
+const leadKey = (week, ld) => `${week}:${ld.league.league_id}`;
+const leadSeen = new Map();  // week + league → the last decisive lead, 'up' or 'down'
+const leadFlips = new Map(); // week + league → { up, at } for the most recent change
 
 const leadState = (me, opp) => {
   const [a, b] = [me?.m?.points || 0, opp?.m?.points || 0];
@@ -1129,7 +1133,7 @@ const leadState = (me, opp) => {
 function trackLeads(data) {
   for (const ld of data?.model?.leagues || []) {
     if (!ld.me || !ld.opp) continue;
-    const id = ld.league.league_id;
+    const id = leadKey(data.week, ld);
     const now = leadState(ld.me, ld.opp);
     if (now === 'tied') continue;
     const was = leadSeen.get(id);
@@ -1142,7 +1146,7 @@ const flipWhen = (ms) => (ms < 60_000 ? 'just now' : agoText(ms));
 
 // "▲ Took the lead · 2 min ago" on the card it happened in, for ten minutes after.
 function leadLine(ld) {
-  const flip = leadFlips.get(ld.league.league_id);
+  const flip = leadFlips.get(leadKey(current?.week, ld));
   if (!flip) return null;
   const since = Date.now() - flip.at;
   if (since > LEAD_NOTE_MS) return null;
