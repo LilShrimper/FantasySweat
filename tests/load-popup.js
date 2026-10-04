@@ -16,7 +16,7 @@ const popupPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'popup.js'
 // a `const` declared there. Each is picked up on its own so an older copy of popup.js (say, when
 // checking that a test really does catch a past bug) still loads, minus whatever it doesn't have yet.
 const NAMES = [
-  'leagueProj', 'scorePlay', 'slimPlay', 'fixYards', 'playYards', 'downSpot', 'safeAvatar', 'teamLogo', 'isNewer', 'initials',
+  'leagueProj', 'scorePlay', 'slimPlay', 'fixYards', 'playYards', 'returnYards', 'downSpot', 'safeAvatar', 'teamLogo', 'isNewer', 'initials',
   'sleeperWinProb', 'secondsLeft', 'statLabel', 'fmt2', 'fmtPts', 'signed', 'liveScores', 'emptyLine',
   'byeLine', 'byeStarters', 'yetToPlay', 'playingNow', 'canStillScore', 'startersIn', 'playerInfo', 'cardName', 'leagueTag',
   'sittingLine', 'sittingStarters',

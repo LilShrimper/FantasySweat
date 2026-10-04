@@ -1865,7 +1865,7 @@ function scorePlay(play, byPid, defs) {
       if (Math.abs(pts) < 0.005) continue;
       const bucket = items[leg.side > 0 ? 'for' : 'against'];
       let it = bucket.find((x) => x.pl === pl);
-      if (!it) bucket.push((it = { pl, pts, legs: [] }));
+      if (!it) bucket.push((it = { pl, pts, legs: [], stats })); // stats ride along for the row's detail
       it.legs.push({ leg, pts });
       it.pts = headlinePts(it.legs);
     }
@@ -1975,6 +1975,17 @@ function downSpot(play) {
   return [down, play.spot].filter(Boolean).join(' · ');
 }
 
+// How far a turnover was brought back, from whichever return-yard stat the play carries —
+// `idp_int_ret_yd` on the defender who picked it off, `int_ret_yd` once it's rolled into his team's
+// defense, and the fumble equivalents. Worth showing because some leagues score it: It's Just
+// Fellers pays for int_ret_yd, blk_kick_ret_yd and fg_ret_yd.
+function returnYards(stats) {
+  for (const [k, v] of Object.entries(stats || {})) {
+    if (v && /^(?:idp_)?\w+_ret_yd$/.test(k)) return v;
+  }
+  return 0;
+}
+
 function playItem(it, side) {
   const { play, game } = it;
   // The clock time moved to the hover text so the down and spot fit on one line in the popup.
@@ -1991,6 +2002,7 @@ function playItem(it, side) {
         h('span', { class: 'lp-name' }, x.pl.info.name,
           x.pl.info.num != null && x.pl.info.num !== '' ? h('span', { class: 'num' }, ` #${x.pl.info.num}`) : null),
         h('span', { class: 'pj' }, x.pl.info.pos),
+        returnYards(x.stats) ? h('span', { class: 'lp-ret', title: 'Return yards on the turnover' }, `${returnYards(x.stats)} yd return`) : null,
         // Same as a player's row: only the leagues that don't score the play the way the number
         // beside it says carry their own.
         x.legs.map((l) => legChip(l.leg, `: ${signed(l.pts)}`, samePts(l.pts, x.pts) ? null : signed(l.pts))));
