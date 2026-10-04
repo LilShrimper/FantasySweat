@@ -9,7 +9,6 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 ### New
 - **In play:** a league card can carry an **in play** line above **yet to play** — "5 (1 QB, 2 RB, 1 TE, 1 D/ST) · in play · 5 (2 RB, 1 WR, 1 K, 1 D/ST)" — for the starters whose games are under way. The two lines split the players who can still score between them, so **yet to play** means the ones who haven't kicked off yet again, and a player moves from one line to the other when his game starts. Either line hides itself when neither side has anybody in that state, and a hairline separates the two when both are showing.
 - **Which counts a card carries** is a Settings option (Display): only **yet to play**, as before and still the default; only **in play**; **in play** on the Live plays tab with **yet to play** everywhere else; **both** on Live plays and **yet to play** elsewhere; **both** everywhere, or **none**, which leaves both counts off the card altogether.
-
 - **Return yards on turnovers:** a **Live plays** row for an interception or a recovered fumble says how far it was brought back — "+2 · PHI D/ST · DEF · 25 yd return". Some leagues score return yards, so those points were already in the number beside the play; now you can see where they came from. Blocked-kick and field-goal returns show it too.
 
 ### Fixed
