@@ -397,6 +397,10 @@ test('the margin beside your score is measured against their score, never their 
   assert.equal(api.marginText(side(125, [starter('in')], 120), opp).text, '(+6.1)');
   assert.equal(api.marginText(side(110, [starter('in')], 200), opp).text, '(−8.9)');
   assert.equal(api.marginText(side(96, []), side(96, [])).text, '(tied)');
+  // Level on nothing isn't worth saying: no margin at all until somebody scores.
+  assert.equal(api.marginText(side(0, []), side(0, [])).text, '');
+  assert.equal(api.marginText(side(0, []), side(0, [])).tone, 'none');
+  assert.equal(api.marginText(side(0.2, []), side(0.2, [])).text, '(tied)'); // but 0.2 apiece is a real tie
   // One decimal, like the verdict's margin in the corner — never a bare "(−4)".
   assert.equal(api.marginText(side(0, []), side(4, [])).text, '(−4.0)');
   assert.equal(api.marginText(side(104.74, []), side(96.4, [])).text, '(+8.3)');

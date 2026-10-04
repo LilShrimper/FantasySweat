@@ -1036,6 +1036,8 @@ function marginText(me, opp) {
   const moving = theirLeft
     ? `${theirLeft} of their starters can still score, so it can still move`
     : 'their starters are done, so that\'s the gap for good';
+  // Nobody has scored yet, so "(tied)" beside two zeros says nothing: no margin at all.
+  if (!have && !theirs) return { tone: 'none', text: '', title: '' };
   if (!diff) return { tone: 'tied', text: '(tied)', title: `Level at ${fmt2(theirs)} · ${moving}` };
   return {
     tone: diff > 0 ? 'ahead' : 'behind',
@@ -1052,6 +1054,7 @@ function marginNow(ld) {
   const games = (current?.model.games || []).filter((g) => !g.none);
   if (!games.length || !games.some((g) => g.state !== 'pre')) return null;
   const m = marginText(ld.me, ld.opp);
+  if (!m.text) return null;
   return h('span', { class: `mnow ${m.tone === 'ahead' ? 'good' : m.tone === 'behind' ? 'bad' : ''}`, title: m.title }, ` ${m.text}`);
 }
 
