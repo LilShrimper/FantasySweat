@@ -7,7 +7,7 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 ## Unreleased
 
 ### New
-- **Order game cards your way:** a Settings option (Display) — **Kickoff time** as before, **Projected points in play**, or **Players in the game**, counting both sides of your matchups. Games tied on your choice fall back to kickoff time. Live games still come first and byes last whichever you pick. Until now, games kicking off at the same time sat in whatever order your players happened to load in, so a 1:00 game with seven of your players could sit below one with a single player.
+- **Order games within a kickoff window:** a Settings option (Display) — **Projected points in play** or **Players in the game**, counting both sides of your matchups. The windows themselves never move: Thursday, Sunday 1:00, the 4:05/4:25 block, Sunday night, Monday, the same windows the time filter uses, with live games first and byes last. The option only sorts the games inside one window. Until now they sat in whatever order your players happened to load in, so a 1:00 game with seven of your players could sit below one with a single player.
 
 ## 1.0.21 — 2026-10-01
 

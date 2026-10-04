@@ -458,27 +458,33 @@ test('the margin says which way it goes, so the card can color it', () => {
   assert.equal(api.marginText(up, same).tone, 'tied');    // plain
 });
 
-test('game cards sort by the Settings option, inside live-first order', () => {
-  const g = (id, state, date, players, projStake) => ({ id, state, date, players: new Array(players).fill(0), projStake });
-  //        id        state  kickoff  players  proj pts in play
+test('kickoff windows keep their order; the Settings option sorts inside one', () => {
+  // A real week: Thursday night, Sunday 1:00, the 4:05/4:25 block (one window, 20 minutes apart),
+  // Sunday night, Monday night.
+  const at = (day, h, m) => new Date(2026, 9, day, h, m);
+  const g = (id, date, players, projStake, state = 'pre') => ({ id, state, date, players: new Array(players).fill(0), projStake });
   const list = [
-    g('live-small', 'in', 10, 2, 10),
-    g('one', 'pre', 100, 3, 40),
-    g('two', 'pre', 100, 7, 25),
-    g('three', 'pre', 200, 1, 90),
-    g('done', 'post', 5, 9, 99),
+    g('thu', at(1, 20, 15), 1, 30),
+    g('one-a', at(4, 13, 0), 3, 40),
+    g('one-b', at(4, 13, 0), 7, 25),
+    g('four-05', at(4, 16, 5), 1, 20),
+    g('four-25', at(4, 16, 25), 4, 95),
+    g('sun-night', at(4, 20, 20), 7, 120),
+    g('mon', at(5, 20, 15), 2, 15),
     { id: 'bye', none: true, players: [] },
   ];
   const ids = (how) => api.sortGames(list, how).map((x) => x.id);
-  // Time: the model's own order, untouched.
-  assert.deepEqual([...ids('time')], ['live-small', 'one', 'two', 'three', 'done', 'bye']);
-  // Points: most at stake first, but a live game still outranks a bigger one that hasn't kicked off,
-  // and the finished game stays at the bottom however much was riding on it.
-  assert.deepEqual([...ids('points')], ['live-small', 'three', 'one', 'two', 'done', 'bye']);
-  // Players: most of your players first; 'one' and 'two' swap because 7 beats 3.
-  assert.deepEqual([...ids('players')], ['live-small', 'two', 'one', 'three', 'done', 'bye']);
-  // An unknown saved value behaves like 'time' rather than throwing.
-  assert.deepEqual([...ids('nonsense')], [...ids('time')]);
+  // Sunday night has the most points of any game and Monday the fewest, and neither moves: the
+  // windows run Thursday, 1:00, 4:00, Sunday night, Monday whatever the option says.
+  assert.deepEqual([...ids('points')], ['thu', 'one-a', 'one-b', 'four-25', 'four-05', 'sun-night', 'mon', 'bye']);
+  // Only the order inside a window changes: the two 1:00 games swap on player count, and the
+  // 4:05 and 4:25 games are one window, so they swap too.
+  assert.deepEqual([...ids('players')], ['thu', 'one-b', 'one-a', 'four-25', 'four-05', 'sun-night', 'mon', 'bye']);
+  // An unknown saved value behaves like points rather than throwing.
+  assert.deepEqual([...ids('nonsense')], [...ids('points')]);
+  // A live game still comes first and a finished one still goes last, whatever window they're in.
+  const mixed = [g('mon-live', at(5, 20, 15), 1, 5, 'in'), g('one-done', at(4, 13, 0), 9, 99, 'post'), g('four', at(4, 16, 25), 2, 50)];
+  assert.deepEqual([...api.sortGames(mixed, 'points').map((x) => x.id)], ['mon-live', 'four', 'one-done']);
   // Sorting doesn't disturb the list it was handed.
-  assert.equal(list[1].id, 'one');
+  assert.equal(list[1].id, 'one-a');
 });
