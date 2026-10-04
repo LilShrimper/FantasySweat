@@ -492,3 +492,23 @@ test('kickoff windows keep their order; the Settings option sorts inside one', (
   // Sorting doesn't disturb the list it was handed.
   assert.equal(list[1].id, 'one-a');
 });
+
+test('a defense is walked to its score, not extrapolated from an early shutout', () => {
+  const half = { state: 'in', period: 3, clock: 900 }; // a quarter and a half left: half the game
+  const kick = { state: 'pre' }, done = { state: 'post' };
+  // GB D/ST at 0-0 early: 13 points, 10 of which are "0 points allowed" and "under 100 yards" that
+  // it hasn't earned yet. The old blend read that as a pace and projected ~20.
+  assert.ok(api.sleeperLiveProj(13, 6.19, 2700) > 18);           // what a skill player would get
+  const def = api.liveProj(13, 6.19, { state: 'in', period: 2, clock: 900 }, false, 'DEF');
+  assert.ok(def > 6.19 && def < 10, `defense projected ${def}`); // between the two, nowhere near 20
+  // Halfway through: halfway between the pre-game number and what it has.
+  assert.ok(Math.abs(api.liveProj(13, 6.19, half, false, 'DEF') - (6.19 + 13) / 2) < 0.01);
+  // The ends are exact: the pre-game number at kickoff, the real score at the whistle.
+  assert.equal(api.liveProj(0, 8.26, kick, false, 'DEF'), 8.26);
+  assert.equal(api.liveProj(4, 8.26, done, false, 'DEF'), 4);
+  // A defense that really is having a day still climbs, just without the early spike.
+  assert.ok(api.liveProj(24, 7, half, false, 'DEF') > 15);
+  // Every other position is untouched.
+  assert.equal(api.liveProj(13, 6.19, half, false, 'WR'), api.sleeperLiveProj(13, 6.19, 1800));
+  assert.equal(api.liveProj(13, 6.19, half, false), api.sleeperLiveProj(13, 6.19, 1800));
+});

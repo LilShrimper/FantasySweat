@@ -11,7 +11,10 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 
 ### Changed
 - **Where you stand moved up to the verdict:** the top right of a league card now reads **"Projected win (+17.9), Now (+1.5)"** — where the matchup is heading, then where it stands. It used to sit beside your score. Green when you're up and red when you're down, so a card can say it's projected to win in green while **Now (−18.8)** sits in red beside it.
-- **(tied) beside your score** no longer shows when neither team has scored. It said nothing on a card reading 0 against 0, which is every league where nobody has played yet. A real tie, both sides on the same number above zero, still shows.
+- **(tied) beside your score** no longer shows when neither team has scored.
+
+### Fixed
+- **A team defense's in-game projection.** Sleeper and ESPN both credit a D/ST with "0 points allowed" and "under 100 yards allowed" from the opening kickoff — about 10 points it gives back as the opponent moves the ball — and the projection was reading that as a scoring pace: a defense sitting on 13 at 0–0 was projected to finish near 20. A defense is now walked from its pre-game projection to the score it actually has as the clock runs, landing on its real points at the whistle. Every other position is unchanged. On Sleeper leagues this fed the card's projected total and win chance as well, so those ran a few points high whenever a defense was playing. It said nothing on a card reading 0 against 0, which is every league where nobody has played yet. A real tie, both sides on the same number above zero, still shows.
 
 ## 1.0.21 — 2026-10-01
 
