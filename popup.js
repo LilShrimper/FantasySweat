@@ -918,15 +918,16 @@ function leagueCard(ld) {
   },
     h('div', { class: 'lg-head' },
       cardName(ld.league),
-      h('span', {
-        class: 'wl', style: `color:${color}`,
-        title: margin ? `${ld.final ? 'Final' : 'Projected'} margin: ${fmt2(ld.final ? me.m.points : me.proj)} vs ${fmt2(ld.final ? opp.m.points : opp.proj)}` : null,
-      }, verdict + margin)),
+      h('div', { class: 'wl-wrap' },
+        h('span', {
+          class: 'wl', style: `color:${color}`,
+          title: margin ? `${ld.final ? 'Final' : 'Projected'} margin: ${fmt2(ld.final ? me.m.points : me.proj)} vs ${fmt2(ld.final ? opp.m.points : opp.proj)}` : null,
+        }, verdict + margin),
+        marginNow(ld))),
     h('div', { class: 'lg-score' },
       h('div', { class: 'side' },
         who(me, 'me'), standing(me),
-        h('span', { class: 'pts', style: `color:${color}`, title: totalNote(ld, me) }, fmtPts(me.m.points)),
-        marginNow(ld), ' ',
+        h('span', { class: 'pts', style: `color:${color}`, title: totalNote(ld, me) }, fmtPts(me.m.points)), ' ',
         h('span', { class: 'pj' }, `proj ${fmt2(me.proj)}`)),
       h('div', { class: 'mid' },
         h('span', { class: 'vs' }, 'vs'),
@@ -1047,15 +1048,18 @@ function marginText(me, opp) {
   };
 }
 
-// That margin beside your score. Not before the week kicks off (it would just read 0) and not once
-// the matchup is final — the verdict in the corner carries the final margin.
+// That margin, after the verdict: "Projected win (+13.2), Now (+3.0)". The verdict's own margin is
+// where the matchup is heading; this is where it stands. Not before the week kicks off, and not once
+// the matchup is final, when the verdict's margin is the result and there's no "now" left.
+// It says "Now" rather than "Live" because it's just as true between windows, when nothing is live.
 function marginNow(ld) {
   if (ld.final || !ld.me || !ld.opp) return null;
   const games = (current?.model.games || []).filter((g) => !g.none);
   if (!games.length || !games.some((g) => g.state !== 'pre')) return null;
   const m = marginText(ld.me, ld.opp);
   if (!m.text) return null;
-  return h('span', { class: `mnow ${m.tone === 'ahead' ? 'good' : m.tone === 'behind' ? 'bad' : ''}`, title: m.title }, ` ${m.text}`);
+  return h('span', { class: `mnow ${m.tone === 'ahead' ? 'good' : m.tone === 'behind' ? 'bad' : ''}`, title: m.title },
+    m.tone === 'tied' ? ', Now tied' : `, Now ${m.text}`);
 }
 
 // ---------- lead changes while you're watching ----------

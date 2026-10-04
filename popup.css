@@ -228,6 +228,9 @@ body.full .leagues { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)
 .mid { display: flex; flex-direction: column; align-items: center; gap: 1px; }
 .pct { font-weight: 800; font-size: 13px; font-variant-numeric: tabular-nums; }
 .wl { font-weight: 700; }
+/* The verdict and, after it, where the matchup stands right now — kept on one line, shrinking the
+   league name beside it rather than wrapping. */
+.wl-wrap { flex: none; white-space: nowrap; }
 .lg.clickable { cursor: pointer; transition: opacity .15s, background .15s; }
 .lg.clickable:hover { background: var(--panel2); }
 .lg.clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
