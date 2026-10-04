@@ -422,11 +422,19 @@ test('"left to play" counts everyone who can still score, with the positions', (
       { pid: 'bye', slot: 'TE', info: { pos: 'TE' }, game: null },            // nor a player on bye
     ],
   };
+  // The two lines split the starters who can still score: on the field now, and not kicked off yet.
+  const playing = api.playingNow(side);
+  assert.equal(playing.n, 2);
+  assert.equal(playing.text, '1 RB, 1 K');
   const left = api.leftToPlay(side);
-  assert.equal(left.n, 5);                                   // the WR whose game is over is out
-  assert.equal(left.text, '1 QB, 2 RB, 1 K, 1 D/ST');        // in Sleeper's position order
+  assert.equal(left.n, 3);                            // the two who are playing have moved off it
+  assert.equal(left.text, '1 QB, 1 RB, 1 D/ST');      // in Sleeper's position order
+  assert.equal(api.canStillScore(side), 5);           // and together they're everyone who's left
+  // The WR whose game is finished is in neither, and nor is the bench, the empty spot or the bye.
+  assert.equal(api.playingNow({ roster: [starter('post', 'QB')] }).n, 0);
   assert.equal(api.leftToPlay({ roster: [starter('post', 'QB')] }).n, 0);
   assert.equal(api.leftToPlay(null).n, 0);
+  assert.equal(api.canStillScore(null), 0);
 });
 
 test('a lead change is noted once, and 0-0 at kickoff is not one', () => {

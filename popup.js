@@ -948,6 +948,7 @@ function leagueCard(ld) {
         h('span', { class: 'pts', style: `color:${winColor(1 - p)}`, title: totalNote(ld, opp) }, fmtPts(opp.m.points)))), // their side of the odds
     h('div', { class: 'bar', title: `Win chance ${Math.round(p * 100)}%` }, h('i', { style: `width:${(p * 100).toFixed(1)}%` })),
     leadLine(ld),
+    playingLine(ld),
     toPlayLine(ld),
     emptyLine(ld),
     byeLine(ld),
@@ -999,14 +1000,14 @@ function byeLine(ld) {
     `⚠ ${byes.length === 1 ? 'Starter' : `${byes.length} starters`} on bye: ${names}`);
 }
 
-// "{ n: 6, text: '1 QB, 2 RB, 1 WR, 1 K, 1 D/ST' }": the starters who can still add to a side's
-// score — anyone whose game isn't over — counted by position (QB, RB, WR, TE, K, D/ST, then anything
-// else). Bench, empty lineup slots and players with no game this week don't count.
-function leftToPlay(side) {
+// "{ n: 3, text: '1 WR, 1 TE, 1 K' }": a side's starters whose game is in `state`, counted by
+// position (QB, RB, WR, TE, K, D/ST, then anything else). Bench, empty lineup slots and players with
+// no game this week never count.
+function startersIn(side, state) {
   const counts = {};
   let n = 0;
   for (const r of side?.roster || []) {
-    if (!r.pid || BENCH_SLOTS.includes(r.slot) || !r.game || r.game.state === 'post') continue;
+    if (!r.pid || BENCH_SLOTS.includes(r.slot) || r.game?.state !== state) continue;
     counts[r.info.pos] = (counts[r.info.pos] || 0) + 1;
     n++;
   }
@@ -1018,22 +1019,30 @@ function leftToPlay(side) {
   return { n, text };
 }
 
-// Under the win bar: how many starters each side has left and who they are — "6 (1 QB, 2 RB, 1 WR,
-// 1 K, 1 D/ST)". From the week's first kickoff on; before that it's just the lineup. The line goes
-// once both sides are out of players.
-function toPlayLine(ld) {
+const playingNow = (side) => startersIn(side, 'in');  // on the field right now
+const leftToPlay = (side) => startersIn(side, 'pre'); // not kicked off yet
+// Everyone who can still add to a side's score, which is both of those together.
+const canStillScore = (side) => playingNow(side).n + leftToPlay(side).n;
+
+// Under the win bar: how many starters each side has in a state and who they are — "3 (1 WR, 1 TE,
+// 1 K)". From the week's first kickoff on; before that "left to play" is just the lineup. A line goes
+// once neither side has anyone in that state.
+function countLine(ld, label, pick, title) {
   const games = (current?.model.games || []).filter((g) => !g.none);
   if (!games.length) return null; // no schedule loaded: can't tell who has played
   if (!games.some((g) => g.state !== 'pre')) return null; // the week hasn't kicked off yet
-  const mine = leftToPlay(ld.me), theirs = leftToPlay(ld.opp);
+  const mine = pick(ld.me), theirs = pick(ld.opp);
   if (!mine.n && !theirs.n) return null;
   const cell = (x) => (x.n ? `${x.n} (${x.text})` : 'none');
-  return h('div', { class: 'to-play', title: 'Starters whose games aren’t over, so they can still score' },
+  return h('div', { class: 'to-play', title },
     h('span', null, cell(mine)),
     // The full label, even though it wraps the position lists on the longest rosters at popup width.
-    h('span', { class: 'to-play-label' }, 'left to play'),
+    h('span', { class: 'to-play-label' }, label),
     h('span', { class: 'r' }, cell(theirs)));
 }
+
+const playingLine = (ld) => countLine(ld, 'currently playing', playingNow, 'Starters whose games are under way');
+const toPlayLine = (ld) => countLine(ld, 'left to play', leftToPlay, 'Starters whose games haven’t kicked off yet');
 
 // Where you stand against their score **right now** — never against a projection, which moves all
 // afternoon, so being "past" one means nothing. Green when you're up, red when you're down. The
@@ -1043,7 +1052,7 @@ function marginText(me, opp) {
   const have = me?.m?.points || 0;
   const theirs = opp?.m?.points || 0;
   const diff = have - theirs;
-  const theirLeft = leftToPlay(opp).n;
+  const theirLeft = canStillScore(opp); // on the field plus still to come
   const moving = theirLeft
     ? `${theirLeft} of their starters can still score, so it can still move`
     : 'their starters are done, so that\'s the gap for good';
