@@ -9,6 +9,9 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 ### New
 - **Order games within a kickoff window:** a Settings option (Display) — **Projected points in play** or **Players in the game**, counting both sides of your matchups. The windows themselves never move: Thursday, Sunday 1:00, the 4:05/4:25 block, Sunday night, Monday, the same windows the time filter uses, with live games first and byes last. The option only sorts the games inside one window. Until now they sat in whatever order your players happened to load in, so a 1:00 game with seven of your players could sit below one with a single player.
 
+### Changed
+- **(tied) beside your score** no longer shows when neither team has scored. It said nothing on a card reading 0 against 0, which is every league where nobody has played yet. A real tie, both sides on the same number above zero, still shows.
+
 ## 1.0.21 — 2026-10-01
 
 ### Fixed
