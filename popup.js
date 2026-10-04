@@ -885,6 +885,7 @@ function leagueCard(ld) {
   // By how much: projected totals until the matchup is final, then the actual scores. "(+17.9)"
   const diff = ld.final ? me.m.points - opp.m.points : me.proj - opp.proj;
   const margin = Math.abs(diff) < 0.05 ? '' : ` (${diff > 0 ? '+' : '−'}${fmt1(Math.abs(diff))})`;
+  const now = marginNow(ld); // where it stands, after the verdict — null before kickoff and once final
   // A team nickname replaces the name (and username); hovering still shows the real one.
   // Clicking the name opens that team's roster instead of filtering to the league.
   const who = (s, side) => {
@@ -932,8 +933,10 @@ function leagueCard(ld) {
         h('span', {
           class: 'wl', style: `color:${color}`,
           title: margin ? `${ld.final ? 'Final' : 'Projected'} margin: ${fmt2(ld.final ? me.m.points : me.proj)} vs ${fmt2(ld.final ? opp.m.points : opp.proj)}` : null,
-        }, verdict + margin),
-        marginNow(ld))),
+        // The comma belongs to the verdict, so it takes the verdict's color rather than the one the
+        // margin after it is wearing.
+        }, verdict + margin + (now ? ',' : '')),
+        now)),
     h('div', { class: 'lg-score' },
       h('div', { class: 'side' },
         who(me, 'me'), standing(me),
@@ -1069,7 +1072,7 @@ function marginNow(ld) {
   const m = marginText(ld.me, ld.opp);
   if (!m.text) return null;
   return h('span', { class: `mnow ${m.tone === 'ahead' ? 'good' : m.tone === 'behind' ? 'bad' : ''}`, title: m.title },
-    m.tone === 'tied' ? ', Now tied' : `, Now ${m.text}`);
+    m.tone === 'tied' ? ' Now tied' : ` Now ${m.text}`);
 }
 
 // ---------- lead changes while you're watching ----------
