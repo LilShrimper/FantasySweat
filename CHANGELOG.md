@@ -4,6 +4,11 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### Fixed
+- **Live plays: a corrected play no longer reads as a loss.** Sleeper's feed sometimes puts a correction in a play's stat row instead of the play's own numbers — "Lamar Jackson 52 Yd pass complete to Zay Flowers" arrived carrying −37 yards, so the catch showed as **−2.7** and the 52-yard gain never appeared at all. When a row's yardage runs the other way from the play's own description by more than 20 yards, the description wins and the play shows as the **+6.2** it was. Ordinary one- or two-yard differences are left alone, as are plays where the stats are right and the description is stale, like a touchdown wiped out by a holding penalty. Only Live plays and the latest-scoring-play tag were ever affected; player and team totals don't come from the play feed.
+
 ## 1.0.22 — 2026-10-04
 
 ### New
