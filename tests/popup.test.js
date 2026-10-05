@@ -383,6 +383,17 @@ test('a player has both a short name for the rows and a full one for the breakdo
   assert.equal(unknown.name, unknown.full);
 });
 
+test('a margin is the exact gap between the two numbers on the card', () => {
+  // The verdict's margin comes from the projections printed beside it, so it has to match them:
+  // 141.95 against 142.52 is 0.57. Rounding to a tenth left "(−0.6)" matching neither.
+  assert.equal(api.fmtDiff(141.95 - 142.52), '−0.57');
+  assert.equal(api.fmtDiff(141.38 - 141.74), '−0.36');
+  assert.equal(api.fmtDiff(17.9), '+17.9');   // a trailing zero still goes, like the scores
+  assert.equal(api.fmtDiff(-4), '−4.0');      // but never a bare "−4"
+  assert.equal(api.fmtDiff(0.004), '');       // under a hundredth is a dead heat, not "+0.0"
+  assert.equal(api.fmtDiff(0), '');
+});
+
 test('the margin beside your score is measured against their score, never their projection', () => {
   const side = (points, roster, proj) => ({ m: { points }, roster, proj });
   const starter = (state, pos = 'RB') => ({ pid: '1', slot: pos, info: { pos }, game: { state } });
@@ -401,9 +412,13 @@ test('the margin beside your score is measured against their score, never their 
   assert.equal(api.marginText(side(0, []), side(0, [])).text, '');
   assert.equal(api.marginText(side(0, []), side(0, [])).tone, 'none');
   assert.equal(api.marginText(side(0.2, []), side(0.2, [])).text, '(tied)'); // but 0.2 apiece is a real tie
-  // One decimal, like the verdict's margin in the corner — never a bare "(−4)".
+  // To the hundredth, like the verdict's margin in the corner — never a bare "(−4)".
   assert.equal(api.marginText(side(0, []), side(4, [])).text, '(−4.0)');
-  assert.equal(api.marginText(side(104.74, []), side(96.4, [])).text, '(+8.3)');
+  assert.equal(api.marginText(side(104.74, []), side(96.4, [])).text, '(+8.34)');
+  // The gap has to be the subtraction you'd do yourself: 141.38 against 141.74 is 0.36, not 0.4.
+  assert.equal(api.marginText(side(141.38, []), side(141.74, [])).text, '(−0.36)');
+  // Closer than a hundredth is a tie, not "(+0.0)".
+  assert.equal(api.marginText(side(96.004, []), side(96, [])).text, '(tied)');
   assert.match(api.marginText(side(0, []), side(15.6, [])).title, /^You're 15.6 behind — 0.0 to their 15.6/);
   // Nothing claims a lead is safe while they can still score, and nothing anywhere says "clear".
   assert.match(api.marginText(me, opp).title, /can still move/);
