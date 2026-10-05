@@ -4,6 +4,11 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### Changed
+- **The layout survives a narrow window.** Everything was built around the popup's fixed 460px, so anything narrower — a phone, or a small browser window — pushed the game cards off the side of the screen. Below 455px the cheer and boo columns stack, the five tabs stay on one line with bigger tap targets, Settings puts each league's name above its nickname and color, and Pop out and Open in a full tab step aside. The popup itself is exactly 460px and is deliberately above the breakpoint, so it looks the same as it always did.
+
 ## 1.0.25 — 2026-10-04
 
 ### Fixed

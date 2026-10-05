@@ -33,7 +33,10 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body {
+  /* The extension popup is this wide. Served as a website the viewport can be narrower than that —
+     an iPhone is 375 to 430 — so the width is a ceiling, not a promise. */
   width: 460px;
+  max-width: 100%;
   min-height: 200px;
   font: 13px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
@@ -183,7 +186,7 @@ main { padding: 10px 12px 14px; }
 
 /* League summary cards */
 .leagues { display: grid; gap: 6px; }
-body.full .leagues { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+body.full .leagues { grid-template-columns: repeat(auto-fill, minmax(min(290px, 100%), 1fr)); }
 .lg {
   background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--lc);
   border-radius: 9px; padding: 7px 10px;
@@ -309,7 +312,7 @@ body.full .leagues { grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)
 
 /* Game cards */
 .games { display: grid; gap: 8px; }
-body.full .games { grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); }
+body.full .games { grid-template-columns: repeat(auto-fill, minmax(min(440px, 100%), 1fr)); }
 .game { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .game.post { opacity: .72; }
 .g-head {
@@ -378,7 +381,7 @@ body.full .games { grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
 .plist.cheer h3 { color: var(--cheer); }
 .plist.boo h3 { color: var(--boo); }
 .plist.hedge h3 { color: var(--hedge); }
-body.full .pcols { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+body.full .pcols { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 8px; }
 
 body.win { width: auto; }
 
@@ -442,3 +445,33 @@ body.win { width: auto; }
 .lp-note { margin-top: 8px; font-size: 11px; color: var(--muted); text-align: center; }
 
 .foot { margin-top: 10px; font-size: 11px; color: var(--muted); text-align: center; }
+
+/* ---------- Phones ----------
+   The extension popup is always 460px, but the same page served as a website opens at whatever
+   width the phone has. Everything below is what the popup's width was hiding: fixed grid columns
+   that add up to more than the screen, and two-column splits with nowhere to put a name.
+   455 and not 460: the popup's own viewport is exactly 460, and `max-width: 460px` would match it.
+   The widest iPhone is 440, so everything a phone can be is still below this. */
+@media (max-width: 455px) {
+  body.full { padding: 8px 10px 32px; }
+  main { padding: 10px 10px 14px; }
+  /* Pop out and Open in a full tab: there's one window and one tab on a phone. */
+  #popout, #expand { display: none; }
+  /* Five tabs stop fitting one line around 400px at the popup's type size. A point and a half off
+     keeps them on one line down to an iPhone SE, and they wrap rather than clip below that. The
+     rows get taller at the same time: a tab is a thumb target here, not a mouse target. */
+  .tabs { flex-wrap: wrap; }
+  .tabs button { flex: 1 0 auto; padding: 10px 5px; font-size: 11.5px; }
+  .controls button { height: 34px; min-width: 34px; }
+  /* Cheer and boo side by side leave about 150px each — not enough for a name, his team and his
+     league chips. Stack them, cheer first, with the divider turned to match. */
+  .cols, .lp-cols { grid-template-columns: 1fr; }
+  .col + .col { border-left: 0; border-top: 1px solid var(--line); }
+  /* Settings: the league's name takes the first line, its nickname, color and reset the second. */
+  .nick-row { grid-template-columns: 1fr auto auto; row-gap: 6px; }
+  .nick-row > .nick-name { grid-column: 1 / -1; }
+  /* A Display dropdown has no room beside its label here, so it takes the next line in full. Both
+     of them the same width, rather than each sized to whichever option happens to be picked. */
+  .setup label.pick-row { flex-wrap: wrap; }
+  .pick-row select { flex: 1 0 100%; max-width: 100%; }
+}
