@@ -29,7 +29,7 @@ Chrome keeps the extension up to date on its own.
 
 The same page runs as a website at **[lilshrimper.github.io/FantasySweat](https://lilshrimper.github.io/FantasySweat/)** — no extension, no sign-in, nothing to install. Every API it reads allows cross-origin requests, so the fetches happen in your own browser there exactly as they do in the extension.
 
-On iOS, open it in Safari and use **Share → Add to Home Screen**. That's worth doing rather than keeping a tab: Safari clears a site's stored settings after about a week of not visiting, and a home-screen web app isn't on that clock. Your username, leagues, nicknames and display settings live in that storage, and they're per-browser — the website and the extension don't share them.
+On iOS, open it in Safari and use **Share → Add to Home Screen**. It gets its own icon, opens full-screen, and still opens on a bad connection. That's worth doing rather than keeping a tab: Safari clears a site's stored settings after about a week of not visiting, and a home-screen web app isn't on that clock. Your username, leagues, nicknames and display settings live in that storage, and they're per-browser — the website and the extension don't share them.
 
 ## Data sources
 
@@ -65,6 +65,9 @@ fantasy-sweat.html   Page structure (popup, popout window, full tab and the webs
 popup.css            Styles (dark and light themes)
 popup.js             Data loading, cheer/boo logic, win %, live plays, rendering
 icons/               Toolbar and store icons
+app.webmanifest      Website only: name, icon and colors for a phone's Home Screen
+sw.js                Website only: keeps the page itself on the phone so it opens on a bad connection
+web/                 Website only: Home Screen icons
 tests/               Checks on that logic — not part of the extension
 ```
 
