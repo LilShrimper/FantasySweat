@@ -25,6 +25,12 @@ A Chrome extension that pulls your Sleeper and ESPN fantasy football matchups an
 
 Chrome keeps the extension up to date on its own.
 
+## On your phone
+
+The same page runs as a website at **[lilshrimper.github.io/FantasySweat](https://lilshrimper.github.io/FantasySweat/)** — no extension, no sign-in, nothing to install. Every API it reads allows cross-origin requests, so the fetches happen in your own browser there exactly as they do in the extension.
+
+On iOS, open it in Safari and use **Share → Add to Home Screen**. That's worth doing rather than keeping a tab: Safari clears a site's stored settings after about a week of not visiting, and a home-screen web app isn't on that clock. Your username, leagues, nicknames and display settings live in that storage, and they're per-browser — the website and the extension don't share them.
+
 ## Data sources
 
 All public, no login needed:
@@ -55,7 +61,7 @@ Found a bug or have an idea? [Open an issue](https://github.com/LilShrimper/Fant
 
 ```
 manifest.json        Chrome extension manifest (MV3)
-fantasy-sweat.html   Page structure (popup, popout window and full tab all use it)
+fantasy-sweat.html   Page structure (popup, popout window, full tab and the website all use it)
 popup.css            Styles (dark and light themes)
 popup.js             Data loading, cheer/boo logic, win %, live plays, rendering
 icons/               Toolbar and store icons
