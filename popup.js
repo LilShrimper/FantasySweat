@@ -818,6 +818,9 @@ const fmt1 = (n) => (Math.round(n * 10) / 10).toFixed(1);
 // Points and projections, to the hundredth — but only when it isn't 0, so they read like Sleeper's:
 // 129.89 → "129.89", 134.02 → "134.02", 134.10 → "134.1", 134.00 → "134.0"
 const fmt2 = (n) => (Math.round((+n || 0) * 100) / 100).toFixed(2).replace(/0$/, '');
+// A margin, to the same hundredth as the scores it came from: 141.38 against 141.74 is "−0.36", not
+// a rounded "−0.4" that doesn't match either number. Empty at a dead heat.
+const fmtDiff = (diff) => (!Math.round(diff * 100) ? '' : `${diff > 0 ? '+' : '−'}${fmt2(Math.abs(diff))}`);
 const initials = (name) => {
   const words = name.replace(/[^\p{L}\p{N}\s&]/gu, '').split(/\s+/).filter(Boolean);
   return (words.length > 1 ? words.map((w) => w[0]).join('') : words[0] || '?').slice(0, 3).toUpperCase();
@@ -895,9 +898,10 @@ function leagueCard(ld) {
   const verdict = ld.final
     ? (me.m.points > opp.m.points ? 'Won' : me.m.points < opp.m.points ? 'Lost' : 'Tied')
     : Math.round(p * 100) === 50 ? 'Toss-up' : p > 0.5 ? 'Projected win' : 'Projected loss';
-  // By how much: projected totals until the matchup is final, then the actual scores. "(+17.9)"
+  // By how much: projected totals until the matchup is final, then the actual scores. "(+17.91)"
   const diff = ld.final ? me.m.points - opp.m.points : me.proj - opp.proj;
-  const margin = Math.abs(diff) < 0.05 ? '' : ` (${diff > 0 ? '+' : '−'}${fmt1(Math.abs(diff))})`;
+  const gap = fmtDiff(diff);
+  const margin = gap ? ` (${gap})` : '';
   const now = marginNow(ld); // where it stands, after the verdict — null before kickoff and once final
   // A team nickname replaces the name (and username); hovering still shows the real one.
   // Clicking the name opens that team's roster instead of filtering to the league.
@@ -1090,11 +1094,12 @@ function marginText(me, opp) {
     : 'their starters are done, so that\'s the gap for good';
   // Nobody has scored yet, so "(tied)" beside two zeros says nothing: no margin at all.
   if (!have && !theirs) return { tone: 'none', text: '', title: '' };
-  if (!diff) return { tone: 'tied', text: '(tied)', title: `Level at ${fmt2(theirs)} · ${moving}` };
+  const gap = fmtDiff(diff);
+  if (!gap) return { tone: 'tied', text: '(tied)', title: `Level at ${fmt2(theirs)} · ${moving}` };
   return {
     tone: diff > 0 ? 'ahead' : 'behind',
-    // One decimal, like the verdict's margin in the corner: "(+8.3)", "(−4.0)".
-    text: `(${diff > 0 ? '+' : '−'}${fmt1(Math.abs(diff))})`,
+    // To the hundredth, like the verdict's margin in the corner: "(+8.34)", "(−4.0)".
+    text: `(${gap})`,
     title: `You're ${fmt2(Math.abs(diff))} ${diff > 0 ? 'ahead' : 'behind'} — ${fmt2(have)} to their ${fmt2(theirs)} · ${moving}`,
   };
 }
