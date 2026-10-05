@@ -4,10 +4,10 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
-## Unreleased
+## 1.0.25 — 2026-10-04
 
 ### Fixed
-- **The margin matches the scores it came from.** The gap beside the verdict and the "Now" gap were rounded to a tenth, so a card reading 141.38 against 141.74 said "Now (−0.4)" when the subtraction is 0.36 — a number that matched neither score. Both now carry the hundredth, like the scores and projections above them, and a gap under a hundredth still reads as tied.
+- **The margin matches the scores it came from.** The gap beside the verdict and the "Now" gap were rounded to a tenth, so a card reading 141.38 against 141.74 said "Now (−0.4)" when the subtraction is 0.36 — a number that matched neither score. Both now carry the hundredth, like the scores and projections above them, and a gap under a hundredth still reads as tied. (#92)
 
 ## 1.0.24 — 2026-10-04
 
