@@ -5,7 +5,9 @@ name: Publish the website
 # requests, so the fetches happen in each visitor's own browser exactly as they do in the extension.
 #
 # Only the files the page needs go up — the tests, the workflows and the changelog stay out of the
-# site. manifest.json is one of them: off-extension, Settings reads the version out of it.
+# site. manifest.json is one of them: off-extension, Settings reads the version out of it. The
+# rest of what a Home Screen app needs is here too: app.webmanifest, sw.js and the icons in web/,
+# none of which go in the store zip.
 on:
   push:
     branches: [main]
@@ -15,6 +17,9 @@ on:
       - popup.js
       - manifest.json
       - icons/**
+      - web/**
+      - app.webmanifest
+      - sw.js
       - .github/workflows/pages.yml
   workflow_dispatch: # "Run workflow" button — redeploys the current main
 
@@ -39,8 +44,8 @@ jobs:
       - name: Collect the site
         run: |
           mkdir -p site
-          cp fantasy-sweat.html popup.css popup.js manifest.json site/
-          cp -r icons site/
+          cp fantasy-sweat.html popup.css popup.js manifest.json app.webmanifest sw.js site/
+          cp -r icons web site/
           cp fantasy-sweat.html site/index.html
 
       - uses: actions/configure-pages@v5

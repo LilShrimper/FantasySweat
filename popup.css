@@ -32,6 +32,9 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+/* On a phone's Home Screen the page runs edge to edge: keep clear of the rounded corners, the
+   home-indicator bar and, turned sideways, the notch. All zero everywhere else. */
+html { padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 body {
   /* The extension popup is this wide. Served as a website the viewport can be narrower than that —
      an iPhone is 375 to 430 — so the width is a ceiling, not a promise. */
@@ -253,7 +256,7 @@ body.full .leagues { grid-template-columns: repeat(auto-fill, minmax(min(290px, 
 .roster[hidden] { display: none; }
 .ro-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, .5); }
 .ro-panel {
-  position: relative; width: 100%; max-width: 520px; max-height: calc(100vh - 24px); overflow-y: auto;
+  position: relative; width: 100%; max-width: 520px; max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); overflow-y: auto;
   background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--lc);
   border-radius: 10px; padding: 8px 10px 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
 }
@@ -473,5 +476,8 @@ body.win { width: auto; }
   /* A Display dropdown has no room beside its label here, so it takes the next line in full. Both
      of them the same width, rather than each sized to whichever option happens to be picked. */
   .setup label.pick-row { flex-wrap: wrap; }
+  /* iOS zooms the whole page in when you tap a field whose text is under 16px, and doesn't zoom
+     back out. At 16px it leaves the page alone. */
+  input, select, textarea { font-size: 16px; }
   .pick-row select { flex: 1 0 100%; max-width: 100%; }
 }

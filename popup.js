@@ -2618,6 +2618,11 @@ $('#week').addEventListener('change', (e) => {
   refresh();
 });
 const isExtension = typeof chrome !== 'undefined' && !!chrome.runtime?.getURL;
+// The website copy keeps the page itself on the device (sw.js), so the Home Screen app still opens on
+// a bad connection. The extension is already on the device, and never registers it.
+if (!isExtension && typeof navigator !== 'undefined' && navigator.serviceWorker && /^https?:$/.test(location.protocol)) {
+  navigator.serviceWorker.register('sw.js').catch(() => { /* no offline copy; everything else works */ });
+}
 const pageURL = (query = '') => {
   const page = query ? `fantasy-sweat.html?${query}` : 'fantasy-sweat.html';
   return isExtension ? chrome.runtime.getURL(page) : page;
