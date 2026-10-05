@@ -4,13 +4,13 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
-## Unreleased
+## 1.1.0 — 2026-10-05
 
 ### Changed
-- **The layout survives a narrow window.** Everything was built around the popup's fixed 460px, so anything narrower — a phone, or a small browser window — pushed the game cards off the side of the screen. Below 455px the cheer and boo columns stack, the five tabs stay on one line with bigger tap targets, Settings puts each league's name above its nickname and color, and Pop out and Open in a full tab step aside. The popup itself is exactly 460px and is deliberately above the breakpoint, so it looks the same as it always did.
+- **The layout survives a narrow window.** Everything was built around the popup's fixed 460px, so anything narrower — a phone, or a small browser window — pushed the game cards off the side of the screen. Below 455px the cheer and boo columns stack, the five tabs stay on one line with bigger tap targets, Settings puts each league's name above its nickname and color, and Pop out and Open in a full tab step aside. The popup itself is exactly 460px and is deliberately above the breakpoint, so it looks the same as it always did. (#94)
 
 ### Added
-- **A website copy, for your phone.** The same page now runs at [lilshrimper.github.io/FantasySweat](https://lilshrimper.github.io/FantasySweat/) with nothing to install. Added to an iPhone's Home Screen it gets its own icon and name, opens without the browser's bars, keeps clear of the home-indicator bar, and still opens on a bad connection — the page itself is kept on the phone, while scores always come fresh from Sleeper and ESPN. Tapping a field in Settings no longer zooms the page in. The extension is unchanged.
+- **A website copy, for your phone.** The same page now runs at [lilshrimper.github.io/FantasySweat](https://lilshrimper.github.io/FantasySweat/) with nothing to install. Added to an iPhone's Home Screen it gets its own icon and name, opens without the browser's bars, keeps clear of the home-indicator bar, and still opens on a bad connection — the page itself is kept on the phone, while scores always come fresh from Sleeper and ESPN. Tapping a field in Settings no longer zooms the page in. The extension is unchanged. (#95, #96)
 
 ## 1.0.25 — 2026-10-04
 
