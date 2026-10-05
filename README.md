@@ -29,7 +29,25 @@ Chrome keeps the extension up to date on its own.
 
 The same page runs as a website at **[lilshrimper.github.io/FantasySweat](https://lilshrimper.github.io/FantasySweat/)** — no extension, no sign-in, nothing to install. Every API it reads allows cross-origin requests, so the fetches happen in your own browser there exactly as they do in the extension.
 
-On iOS, open it in Safari and use **Share → Add to Home Screen**. It gets its own icon, opens full-screen, and still opens on a bad connection. That's worth doing rather than keeping a tab: Safari clears a site's stored settings after about a week of not visiting, and a home-screen web app isn't on that clock. Your username, leagues, nicknames and display settings live in that storage, and they're per-browser — the website and the extension don't share them.
+Adding it to your Home Screen gives it its own icon, opens it full-screen, and lets it open on a bad connection.
+
+**iPhone (Safari):**
+
+1. Open **[lilshrimper.github.io/FantasySweat](https://lilshrimper.github.io/FantasySweat/)** in Safari.
+2. Tap the **Share** button, then **Add to Home Screen**.
+3. Tap **Add**, then open Fantasy Sweat from the Home Screen and enter your **Sleeper username**, add an **ESPN league**, or both.
+
+On an iPhone this is worth doing rather than keeping a tab: Safari clears a site's stored settings after about a week of not visiting, and a Home Screen app isn't on that clock. Removing the icon removes its settings with it.
+
+**Android (Chrome):**
+
+1. Open **[lilshrimper.github.io/FantasySweat](https://lilshrimper.github.io/FantasySweat/)** in Chrome.
+2. Tap the **⋮** menu, then **Add to Home screen** (some versions say **Install app**).
+3. Tap **Install**, then open Fantasy Sweat and enter your **Sleeper username**, add an **ESPN league**, or both.
+
+Samsung Internet and Firefox have the same option in their own menus.
+
+Your username, leagues, nicknames and display settings are kept on the device, per browser — the phone, the website in a desktop browser and the extension are each set up separately.
 
 ## Data sources
 
