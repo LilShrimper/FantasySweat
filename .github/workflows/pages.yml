@@ -1,0 +1,60 @@
+name: Publish the website
+
+# The same page the extension loads, served at https://lilshrimper.github.io/FantasySweat/ so it can
+# be opened on a phone. There's no build and no server: every API the page calls allows cross-origin
+# requests, so the fetches happen in each visitor's own browser exactly as they do in the extension.
+#
+# Only the files the page needs go up — the tests, the workflows and the changelog stay out of the
+# site. manifest.json is one of them: off-extension, Settings reads the version out of it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - fantasy-sweat.html
+      - popup.css
+      - popup.js
+      - manifest.json
+      - icons/**
+      - .github/workflows/pages.yml
+  workflow_dispatch: # "Run workflow" button — redeploys the current main
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A deploy that's already running can be dropped: the newer commit is the one worth publishing.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # fantasy-sweat.html goes up twice: under its own name, which is what "Open in a full tab"
+      # links to, and as index.html so the bare URL opens the app.
+      - name: Collect the site
+        run: |
+          mkdir -p site
+          cp fantasy-sweat.html popup.css popup.js manifest.json site/
+          cp -r icons site/
+          cp fantasy-sweat.html site/index.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
