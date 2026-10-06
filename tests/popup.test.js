@@ -464,14 +464,14 @@ test('a lead change is noted once, and 0-0 at kickoff is not one', () => {
   assert.equal(api.leadFlips.size, 0);
   assert.equal(api.leadState({ m: { points: 6.2 } }, { m: { points: 0 } }), 'up');
   run(league(6.2, 14.9));       // they go ahead: that's a flip
-  assert.equal(api.leadFlips.get('4:L1').up, false);
+  assert.equal(api.leadFlips.get('4:L1:').up, false);
   run(league(6.2, 14.9));       // nothing changed, so the note stays as it was
-  assert.equal(api.leadFlips.get('4:L1').up, false);
+  assert.equal(api.leadFlips.get('4:L1:').up, false);
   run(league(20.1, 14.9));      // back ahead
-  assert.equal(api.leadFlips.get('4:L1').up, true);
+  assert.equal(api.leadFlips.get('4:L1:').up, true);
   // A tie on the way through doesn't count as a change, and doesn't forget who was ahead.
   run(league(20.1, 20.1));
-  assert.equal(api.leadSeen.get('4:L1'), 'up');
+  assert.equal(api.leadSeen.get('4:L1:'), 'up');
   assert.equal(api.flipWhen(20_000), 'just now');
   assert.equal(api.flipWhen(6 * 60_000), '6 min ago');
 });
@@ -489,11 +489,30 @@ test('looking back at an earlier week doesn\'t move this week\'s lead', () => {
   assert.equal(api.leadFlips.size, 0);         // nothing announced for a week that's over
   run(league(90.68, 98.9), 4);                 // back to this week, unchanged
   assert.equal(api.leadFlips.size, 0);         // so no "took the lead" on the way back
-  assert.equal(api.leadSeen.get('4:L1'), 'down');
-  assert.equal(api.leadSeen.get('2:L1'), 'down');
+  assert.equal(api.leadSeen.get('4:L1:'), 'down');
+  assert.equal(api.leadSeen.get('2:L1:'), 'down');
   // A real change this week still counts.
   run(league(101.2, 98.9), 4);
-  assert.equal(api.leadFlips.get('4:L1').up, true);
+  assert.equal(api.leadFlips.get('4:L1:').up, true);
+});
+
+test('switching to a leaguemate and back is not a lead change', () => {
+  // One league, one week, seen from two teams: yours (roster 3, ahead) and a leaguemate's (roster 7, behind).
+  const league = (key, points, oppPoints) => ({
+    league: { league_id: 'L1' }, me: { key, m: { points } }, opp: { m: { points: oppPoints } }, final: false,
+  });
+  const run = (ld) => api.trackLeads({ week: 4, model: { leagues: [ld] } });
+  api.leadSeen.clear(); api.leadFlips.clear();
+  run(league('3', 204.4, 133.3));   // you: ahead
+  run(league('7', 88.1, 120.6));    // switch the username to them: behind
+  run(league('3', 204.4, 133.3));   // and back to you
+  assert.equal(api.leadFlips.size, 0);            // nobody took or lost anything
+  assert.equal(api.leadSeen.get('4:L1:3'), 'up');
+  assert.equal(api.leadSeen.get('4:L1:7'), 'down');
+  // Each team's own lead changes still count, on its own card.
+  run(league('3', 204.4, 210.2));
+  assert.equal(api.leadFlips.get('4:L1:3').up, false);
+  assert.equal(api.leadFlips.has('4:L1:7'), false);
 });
 
 test('the margin says which way it goes, so the card can color it', () => {
