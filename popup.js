@@ -2286,11 +2286,18 @@ function render() {
     ? { ...scopeToLeague(full, visible.map((ld) => ld.league.league_id), { keepAll: true }), leagues: visible }
     : full;
   const anyLive = model.games.some((g) => g.state === 'in');
-  // Header subtitle: who and when (the week dropdown beside it already shows the week). LIVE is its own piece,
-  // so on a narrow popup a long username is cut short with … instead of LIVE disappearing.
+  // Header subtitle: who and when (the week dropdown beside it already shows the week). Three pieces,
+  // and only the username gives way when there isn't room — "@Rak…" — never the time or LIVE. The
+  // time is there twice: the clock time for the popup, and how long ago for a phone, where the
+  // header is too narrow for "updated 11:21 AM". The stylesheet shows one of them.
+  const clock = new Date(loadedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   $('#sub').replaceChildren(
-    h('span', { class: 'sub-text' }, `${user ? `@${user.display_name} · ` : ''}updated ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`),
-    ...(anyLive ? [h('span', { class: 'sub-live' }, '· LIVE')] : [])); // replaceChildren would print a null as "null"
+    ...(user ? [h('span', { class: 'sub-who' }, `@${user.display_name}`)] : []), // replaceChildren would print a null as "null"
+    h('span', { class: 'sub-when', title: `Updated ${clock}` },
+      user ? '· ' : '',
+      h('span', { class: 'sub-clock' }, `updated ${clock}`),
+      h('span', { class: 'sub-ago' }, updatedAgo(Date.now() - loadedAt))),
+    ...(anyLive ? [h('span', { class: 'sub-live' }, '· LIVE')] : []));
   // Keep only picks that have a matchup this week; picking every league is the same as no filter.
   const selectable = model.leagues.filter((ld) => ld.opp);
   const picked = selectable.filter((ld) => selectedLeagues.includes(ld.league.league_id));
@@ -2331,6 +2338,19 @@ function render() {
 const cleanUsername = (v) => String(v || '').replace(/[^A-Za-z0-9_]/g, '');
 
 let refreshSeq = 0; // only the newest refresh may update the page
+let loadedAt = 0; // when the scores on screen arrived, for "updated …" in the header
+// How long ago that was, for the phone header: "just now", "20s ago", "3 min ago". Seconds go by
+// tens — a number changing every second beside the scores would be the busiest thing on the page.
+const updatedAgo = (ms) => (ms < 10_000 ? 'just now' : ms < 60_000 ? `${Math.floor(ms / 10_000) * 10}s ago` : agoText(ms));
+// It has to keep counting between refreshes, which are 30 seconds apart at best and 5 minutes when
+// nothing is live.
+if (typeof setInterval === 'function') {
+  const tick = setInterval(() => {
+    const el = typeof document !== 'undefined' && document.querySelector?.('.sub-ago');
+    if (el && loadedAt) el.textContent = updatedAgo(Date.now() - loadedAt);
+  }, 5000);
+  tick?.unref?.(); // under the tests' Node, a live timer would keep the run from ending
+}
 let lastRefreshStart = 0; // when the latest refresh began, for the tab-switch lockout
 
 async function refresh() {
@@ -2345,6 +2365,7 @@ async function refresh() {
     const data = await loadAll(username, pickedWeek);
     if (seq !== refreshSeq) return; // a newer refresh (e.g. another week) started meanwhile — it wins
     current = data;
+    loadedAt = Date.now();
     fillWeeks(current.state.week, current.week);
     setStatus('');
     trackLeads(current);

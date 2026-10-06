@@ -496,6 +496,16 @@ test('looking back at an earlier week doesn\'t move this week\'s lead', () => {
   assert.equal(api.leadFlips.get('4:L1:').up, true);
 });
 
+test('the phone header says how long ago the scores arrived', () => {
+  assert.equal(api.updatedAgo(0), 'just now');
+  assert.equal(api.updatedAgo(9_900), 'just now');
+  assert.equal(api.updatedAgo(10_000), '10s ago');
+  assert.equal(api.updatedAgo(29_000), '20s ago');   // by tens, rounded down: never ahead of the truth
+  assert.equal(api.updatedAgo(59_999), '50s ago');
+  assert.equal(api.updatedAgo(60_000), '1 min ago');
+  assert.equal(api.updatedAgo(5 * 60_000), '5 min ago');
+});
+
 test('switching to a leaguemate and back is not a lead change', () => {
   // One league, one week, seen from two teams: yours (roster 3, ahead) and a leaguemate's (roster 7, behind).
   const league = (key, points, oppPoints) => ({

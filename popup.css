@@ -72,7 +72,9 @@ button, select, input { font: inherit; color: inherit; }
 }
 .brand > div { min-width: 0; } /* lets the subtitle shrink (…) instead of sliding under the controls */
 .sub { display: flex; min-width: 0; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
-.sub-text { overflow: hidden; text-overflow: ellipsis; }
+.sub-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sub-when { flex: none; margin-left: .3em; }
+.sub-ago { display: none; } /* the phone's version of the time — see the phone block */
 .sub-live { flex: none; margin-left: .3em; color: var(--live); font-weight: 700; }
 .controls { display: flex; gap: 4px; flex: none; }
 .controls button, .controls select {
@@ -460,6 +462,9 @@ body.win { width: auto; }
   main { padding: 10px 10px 14px; }
   /* Pop out and Open in a full tab: there's one window and one tab on a phone. */
   #popout, #expand { display: none; }
+  /* "updated 11:21 AM" doesn't fit beside the buttons here, so the header says how long ago. */
+  .sub-clock { display: none; }
+  .sub-ago { display: inline; }
   /* Five tabs stop fitting one line around 400px at the popup's type size. A point and a half off
      keeps them on one line down to an iPhone SE, and they wrap rather than clip below that. The
      rows get taller at the same time: a tab is a thumb target here, not a mouse target. */
