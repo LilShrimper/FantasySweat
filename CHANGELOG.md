@@ -4,10 +4,10 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
-## Unreleased
+## 1.1.1 — 2026-10-05
 
 ### Fixed
-- **Lead changes stay with their team.** Changing the username to a leaguemate and back made the league you share flash "Took the lead" or "Lost the lead", because the lead was remembered per league and week but not per team — so their side of the matchup read as yours turning over.
+- **Lead changes stay with their team.** Changing the username to a leaguemate and back made the league you share flash "Took the lead" or "Lost the lead", because the lead was remembered per league and week but not per team — so their side of the matchup read as yours turning over. (#99)
 
 ## 1.1.0 — 2026-10-05
 
