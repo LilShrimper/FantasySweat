@@ -1122,10 +1122,11 @@ function marginNow(ld) {
 const LEAD_NOTE_MS = 10 * 60_000;
 // Keyed by week as well as league: looking back at an earlier week and returning used to read that
 // week's final scores as this week's lead changing hands, so every card flashed "Took the lead" on
-// the way back.
-const leadKey = (week, ld) => `${week}:${ld.league.league_id}`;
-const leadSeen = new Map();  // week + league → the last decisive lead, 'up' or 'down'
-const leadFlips = new Map(); // week + league → { up, at } for the most recent change
+// the way back. And by whose team it is: switching the username to a leaguemate who's losing and
+// back to yours did the same thing, since it's one league and one week seen from two sides.
+const leadKey = (week, ld) => `${week}:${ld.league.league_id}:${ld.me?.key ?? ''}`;
+const leadSeen = new Map();  // week + league + team → the last decisive lead, 'up' or 'down'
+const leadFlips = new Map(); // week + league + team → { up, at } for the most recent change
 
 const leadState = (me, opp) => {
   const [a, b] = [me?.m?.points || 0, opp?.m?.points || 0];
