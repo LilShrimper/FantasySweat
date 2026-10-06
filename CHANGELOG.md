@@ -4,13 +4,13 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
-## Unreleased
+## 1.1.2 — 2026-10-05
 
 ### Changed
-- **On a phone, the header says how long ago the scores updated.** "updated 11:21 AM" didn't fit beside the buttons and was cut to "updated 1…". The phone header now reads "20s ago" or "3 min ago" and keeps counting between refreshes; the popup keeps the clock time. When the line still runs out of room, it's the username that's shortened, never the time.
+- **On a phone, the header says how long ago the scores updated.** "updated 11:21 AM" didn't fit beside the buttons and was cut to "updated 1…". The phone header now reads "20s ago" or "3 min ago" and keeps counting between refreshes; the popup keeps the clock time. When the line still runs out of room, it's the username that's shortened, never the time. (#101)
 
 ### Fixed
-- **"Updated" is when the scores arrived.** The time in the header was reset by anything that redrew the page — switching tabs, picking a league — so it could read as fresh when the scores weren't.
+- **"Updated" is when the scores arrived.** The time in the header was reset by anything that redrew the page — switching tabs, picking a league — so it could read as fresh when the scores weren't. (#101)
 
 ## 1.1.1 — 2026-10-05
 
