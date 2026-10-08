@@ -2632,6 +2632,56 @@ document.addEventListener('keydown', (e) => {
   else if (rosterOpen) closeRoster();
 });
 $('#refresh').addEventListener('click', refresh);
+
+// ---------- pull down to refresh (Home Screen app only) ----------
+// A web app on a phone's Home Screen has no browser around it, so there's nothing to pull: iOS gives
+// it no gesture of its own. This is that gesture. Only there — in a browser tab the browser's own
+// pull reloads the page, and two of them would fight.
+const PULL_READY = 64; // how far the pill has to travel before letting go refreshes
+const PULL_MAX = 96;
+// The pill follows the finger at half speed, like the system's own, and stops at PULL_MAX.
+const pullOffset = (dy) => Math.max(0, Math.min(PULL_MAX, dy * 0.5));
+const isStandalone = typeof matchMedia === 'function'
+  && (matchMedia('(display-mode: standalone)').matches || (typeof navigator !== 'undefined' && navigator.standalone === true));
+function initPull() {
+  const pill = h('div', { class: 'pull', 'aria-hidden': 'true' });
+  document.body.append(pill);
+  let startY = null, offset = 0, busy = false;
+  const show = (px, text) => {
+    pill.textContent = text;
+    pill.style.transform = `translate(-50%, ${px}px)`;
+    pill.style.opacity = String(Math.min(1, px / PULL_READY));
+    pill.classList.toggle('ready', px >= PULL_READY);
+  };
+  const hide = () => { offset = 0; pill.classList.remove('dragging'); show(0, ''); };
+  document.addEventListener('touchstart', (e) => {
+    startY = null;
+    // Only from the very top of the scores: not mid-scroll, not in Settings, not inside a roster panel
+    // (which scrolls on its own), and not while a refresh is already under way.
+    if (busy || e.touches.length !== 1 || window.scrollY > 0 || $('#app').hidden) return;
+    if (e.target.closest?.('.roster')) return;
+    startY = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchmove', (e) => {
+    if (startY == null) return;
+    if (window.scrollY > 0) { startY = null; return hide(); } // it turned into an ordinary scroll
+    offset = pullOffset(e.touches[0].clientY - startY);
+    pill.classList.add('dragging');
+    show(offset, offset >= PULL_READY ? 'Release to refresh' : 'Pull to refresh');
+  }, { passive: true });
+  const end = async () => {
+    if (startY == null) return;
+    startY = null;
+    pill.classList.remove('dragging');
+    if (offset < PULL_READY) return hide();
+    busy = true;
+    show(PULL_READY, 'Refreshing…');
+    try { await refresh(); } finally { busy = false; hide(); }
+  };
+  document.addEventListener('touchend', end, { passive: true });
+  document.addEventListener('touchcancel', () => { startY = null; if (!busy) hide(); }, { passive: true });
+}
+if (isStandalone) initPull();
 $('#week').addEventListener('change', (e) => {
   // Picking the current week means "follow along", so a popout left open moves on to next week by itself.
   const w = Number(e.target.value);
