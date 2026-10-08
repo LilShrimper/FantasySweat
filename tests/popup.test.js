@@ -496,6 +496,14 @@ test('looking back at an earlier week doesn\'t move this week\'s lead', () => {
   assert.equal(api.leadFlips.get('4:L1:').up, true);
 });
 
+test('pulling down has to travel before it refreshes', () => {
+  assert.equal(api.pullOffset(-30), 0);            // pushing up is not a pull
+  assert.equal(api.pullOffset(60), 30);            // half speed
+  assert.ok(api.pullOffset(100) < api.PULL_READY); // a short tug lets go without refreshing
+  assert.ok(api.pullOffset(130) >= api.PULL_READY);
+  assert.equal(api.pullOffset(900), 96);           // and it stops rather than following off the screen
+});
+
 test('the phone header says how long ago the scores arrived', () => {
   assert.equal(api.updatedAgo(0), 'just now');
   assert.equal(api.updatedAgo(9_900), 'just now');

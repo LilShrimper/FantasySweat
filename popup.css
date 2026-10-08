@@ -451,6 +451,22 @@ body.win { width: auto; }
 
 .foot { margin-top: 10px; font-size: 11px; color: var(--muted); text-align: center; }
 
+/* Pull down to refresh, in the Home Screen app: a pill that comes down from under the top edge with
+   the finger. It sits above the page rather than pushing it, so nothing reflows mid-gesture. */
+.pull {
+  position: fixed; top: calc(env(safe-area-inset-top) - 34px); left: 50%; z-index: 40;
+  transform: translate(-50%, 0); opacity: 0; pointer-events: none;
+  padding: 5px 12px; border-radius: 999px; white-space: nowrap;
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  background: var(--panel2); border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0, 0, 0, .3);
+  transition: transform .2s ease, opacity .2s ease;
+}
+.pull.dragging { transition: none; } /* under the finger it follows exactly; it only eases on the way back */
+.pull.ready { color: var(--text); border-color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .pull { transition: none; } }
+/* On Android the installed app's own overscroll would otherwise reload the whole page. */
+@media (display-mode: standalone) { html { overscroll-behavior-y: contain; } }
+
 /* ---------- Phones ----------
    The extension popup is always 460px, but the same page served as a website opens at whatever
    width the phone has. Everything below is what the popup's width was hiding: fixed grid columns
