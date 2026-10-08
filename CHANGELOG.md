@@ -4,10 +4,10 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
-## Unreleased
+## 1.1.3 — 2026-10-07
 
 ### Added
-- **Pull down to refresh, in the Home Screen app.** A web app on the Home Screen has no browser around it, so there was nothing to pull and the ↻ button was the only way. Pulling down from the top of the scores now brings down a "Pull to refresh" pill; let go once it says "Release to refresh". Only in the Home Screen app — in a browser tab the browser's own pull already reloads the page.
+- **Pull down to refresh, in the Home Screen app.** A web app on the Home Screen has no browser around it, so there was nothing to pull and the ↻ button was the only way. Pulling down from the top of the scores now brings down a "Pull to refresh" pill; let go once it says "Release to refresh". Only in the Home Screen app — in a browser tab the browser's own pull already reloads the page. (#103)
 
 ## 1.1.2 — 2026-10-05
 
