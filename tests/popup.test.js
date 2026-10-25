@@ -616,6 +616,27 @@ test('a play whose stats run the other way is read from its description', () => 
   assert.deepEqual({ ...api.fixYards({ rec_yd: -37 }, null) }, { rec_yd: -37 });
 });
 
+test('an overturned call whose stats still show the original ruling scores nothing', () => {
+  // As it arrived: the play's own details say incomplete and not scoring, its stats say touchdown.
+  const raw = (meta, rows) => ({ play_id: 'p1', metadata: { sequence: '1', ...meta }, play_stats: rows });
+  const purdy = { player: { player_id: '8183', team: 'SF' }, stats: { pass_att: 1, pass_cmp: 1, pass_td: 1, pass_yd: 23 } };
+  const watkins = { player: { player_id: '12634', team: 'SF' }, stats: { rec: 1, rec_tgt: 1, rec_td: 1, rec_yd: 23 } };
+  const overturned = { review_result: 'overturned', play_type: 'pass_incomplete', is_scoring_play: false };
+  assert.equal(api.slimPlay(raw(overturned, [purdy, watkins])).stats.length, 0);
+  // A touchdown called back to the 1, still carrying the TD.
+  const pollard = (stats) => ({ player: { player_id: '5967', team: 'TEN' }, stats });
+  const short = { review_result: 'overturned', play_type: 'rush', is_scoring_play: false };
+  assert.equal(api.slimPlay(raw(short, [pollard({ rush_att: 1, rush_yd: 4, rush_td: 1 })])).stats.length, 0);
+  // Once Sleeper catches up, the same play is scored as ruled.
+  assert.equal(api.slimPlay(raw(short, [pollard({ rush_att: 1, rush_yd: 3 })])).stats.length, 1);
+  // Overturned to a touchdown: the details and stats agree, so it counts.
+  const maye = { player: { player_id: '11564', team: 'NE' }, stats: { rush_att: 1, rush_td: 1, rush_yd: 7 } };
+  assert.equal(api.slimPlay(raw({ review_result: 'overturned', play_type: 'rush', is_scoring_play: true }, [maye])).stats.length, 1);
+  // Upheld, or never reviewed: left alone, whatever the stats say.
+  assert.equal(api.slimPlay(raw({ review_result: 'upheld', play_type: 'pass_incomplete', is_scoring_play: false }, [purdy])).stats.length, 1);
+  assert.equal(api.slimPlay(raw({ play_type: 'pass_complete', is_scoring_play: true }, [purdy, watkins])).stats.length, 2);
+});
+
 test('slimPlay carries the corrected yardage through to scoring', () => {
   const play = api.slimPlay({
     play_id: 'p9',

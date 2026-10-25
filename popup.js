@@ -1767,9 +1767,28 @@ function fixYards(stats, descYd) {
   return Object.fromEntries(Object.entries(stats).map(([k, v]) => [k, v === wrong ? descYd : v]));
 }
 
+// A call overturned on review whose stats still describe the call that was overturned. Sleeper
+// updates a play's own details at once — its type, whether it scored — but sometimes leaves the
+// players' stats on it as they were: "Catch made by J.Watkins for 23 yards. TOUCHDOWN. … the play
+// was overturned … Pass incomplete" arrived as play_type pass_incomplete, is_scoring_play false,
+// with Purdy still at 1 completion, 23 yards and a TD, and scored +4.92 for a touchdown that never
+// counted. The box score had it right.
+//
+// Only that way round is caught: a completion on a play marked incomplete, or a touchdown on one
+// marked not scoring. Then the play scores nothing, which is what an incomplete pass or a touchdown
+// called back is worth anyway — so it never waits on Sleeper, and nothing real is hidden. The other
+// way, an incomplete pass ruled a catch, the stale stats already score nothing.
+function contradictsRuling(m, rows) {
+  if (m.review_result !== 'overturned') return false;
+  const has = (test) => rows.some((s) => Object.entries(s.stats || {}).some(([k, v]) => v && test(k)));
+  if (/incomplete/.test(m.play_type || '') && has((k) => k === 'pass_cmp' || k === 'rec')) return true;
+  return m.is_scoring_play === false && has((k) => /_td$/.test(k));
+}
+
 function slimPlay(p) {
   const m = p.metadata || {};
   const mins = m.time_remaining_minutes;
+  const void_ = contradictsRuling(m, p.play_stats || []);
   return {
     id: p.play_id,
     t: Date.parse(m.play_time) || 0,
@@ -1781,7 +1800,7 @@ function slimPlay(p) {
     down: Number(m.down) || 0,               // 0 on kickoffs, extra points, …
     dist: Number(m.distance) || 0,
     spot: m.yard_line_territory && m.yard_line != null ? `${m.yard_line_territory} ${m.yard_line}` : '',
-    stats: (p.play_stats || [])
+    stats: void_ ? [] : (p.play_stats || [])
       .map((s) => ({ pid: s.player?.player_id, team: s.player?.team, stats: fixYards(s.stats || {}, playYards(m.fantasy_description || m.description)) }))
       .filter((s) => s.pid),
   };
@@ -1816,7 +1835,10 @@ async function updatePlays(cur) {
     const entry = (playsCache.games[gid] ||= { final: false, plays: {} });
     for (const p of plays) {
       const sp = slimPlay(p);
+      // A play with nothing to score is dropped rather than skipped, so an overturned call clears
+      // the version saved before the review.
       if (sp.stats.length) entry.plays[sp.id] = sp;
+      else delete entry.plays[sp.id];
     }
     const all = Object.values(entry.plays);
     if (all.length > PLAY_KEEP) {
