@@ -1467,7 +1467,7 @@ function rosterRow(r) {
   const g = r.game;
   const box = ptsBox(g, r.info, `Fantasy points${srcNote([r.src])}`);
   // Once his game is over the live projection is just his score again, so the line goes back to
-  // what he was expected to do: "orig. proj 14.75" beside the 22.5 he actually scored.
+  // what he was expected to do: "orig proj 14.75" beside the 22.5 he actually scored.
   const done = g?.state === 'post';
   return h('div', { class: 'pl ro-row bd-open', ...breakdownHandlers(r.pid, [r.lid]) },
     h('span', { class: 'ro-slot' }, r.slot),
@@ -1485,7 +1485,7 @@ function rosterRow(r) {
     h('div', { class: box.class },
       h('span', { class: 'v', title: box.title }, fmt2(r.pts)),
       h('span', { class: 'p', title: `Pre-game projection: ${fmt2(r.proj)}` },
-        done ? `orig. proj ${fmt2(r.proj)}` : `proj ${fmt2(projOf(r))}`)));
+        done ? `orig proj ${fmt2(r.proj)}` : `proj ${fmt2(projOf(r))}`)));
 }
 
 // The roster of the team clicked on a league card. Redrawn on every refresh while it's open.

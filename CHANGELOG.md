@@ -7,7 +7,7 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 ## Unreleased
 
 ### Changed
-- **A team's roster shows the original projection once a game is over.** After the final whistle the live projection is just the player's score again, so "proj 22.5" beside 22.5 said nothing. Finished players now read "orig. proj" with the pre-game number, so you can see who beat it and who fell short.
+- **A team's roster shows the original projection once a game is over.** After the final whistle the live projection is just the player's score again, so "proj 22.5" beside 22.5 said nothing. Finished players now read "orig proj" with the pre-game number, so you can see who beat it and who fell short.
 - **Players whose games are on stand out on a roster.** The game clock, quarter and network are in red while the game is under way.
 
 ## 1.1.4 — 2026-10-25
