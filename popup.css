@@ -271,6 +271,7 @@ body.full .leagues { grid-template-columns: repeat(auto-fill, minmax(min(290px, 
 .ro-sum { margin: 6px 0 0; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .ro-sec h4 { margin: 10px 0 2px; font-size: 10.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); }
 .ro-note { margin-left: 6px; font-weight: 600; letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
+.ro-live { color: var(--live); font-weight: 600; } /* his game's clock while it's on */
 .ro-slot {
   flex: none; width: 40px; padding: 1px 0; border-radius: 4px; text-align: center;
   font-size: 10px; font-weight: 800; color: var(--muted); background: var(--panel2);
