@@ -855,11 +855,8 @@ function ptsBox(g, info, title) {
   return { class: `pl-pts ${g && g.state !== 'pre' ? '' : 'pre'}`, title };
 }
 // A player's game from his side: "@ PIT · Sun 1:00 PM · FOX", or "No game" on a bye.
-const gameLine = (g, team) => {
-  if (!g) return 'No game';
-  const home = g.home === team;
-  return `${home ? 'vs' : '@'} ${home ? g.away : g.home} · ${gameWhen(g)}`;
-};
+const gameVs = (g, team) => (g.home === team ? `vs ${g.away}` : `@ ${g.home}`);
+const gameLine = (g, team) => (g ? `${gameVs(g, team)} · ${gameWhen(g)}` : 'No game');
 const leagueTag = (league) => nicknames[league.league_id] || initials(league.name);
 // A league card's title: its tag instead of the name when that Settings option is on and a tag is set.
 // Hovering a tag shows the league's real name.
@@ -1469,6 +1466,9 @@ function rosterRow(r) {
   }
   const g = r.game;
   const box = ptsBox(g, r.info, `Fantasy points${srcNote([r.src])}`);
+  // Once his game is over the live projection is just his score again, so the line goes back to
+  // what he was expected to do: "orig. proj 14.75" beside the 22.5 he actually scored.
+  const done = g?.state === 'post';
   return h('div', { class: 'pl ro-row bd-open', ...breakdownHandlers(r.pid, [r.lid]) },
     h('span', { class: 'ro-slot' }, r.slot),
     h('div', { class: 'pl-main' },
@@ -1478,10 +1478,14 @@ function rosterRow(r) {
       h('div', { class: 'pl-meta' },
         h('span', null, `${r.info.pos}${r.rank || ''}${r.info.team ? ' · ' + r.info.team : ''}`),
         injBadge(r.info.inj),
-        h('span', null, gameLine(g, r.info.team)))),
+        // While his game is on, the clock, quarter and network are in the live red, so the players
+        // who can still move the score stand out down a long roster.
+        g ? h('span', null, `${gameVs(g, r.info.team)} · `, h('span', { class: g.state === 'in' ? 'ro-live' : '' }, gameWhen(g)))
+          : h('span', null, 'No game'))),
     h('div', { class: box.class },
       h('span', { class: 'v', title: box.title }, fmt2(r.pts)),
-      h('span', { class: 'p', title: `Pre-game projection: ${fmt2(r.proj)}` }, `proj ${fmt2(projOf(r))}`)));
+      h('span', { class: 'p', title: `Pre-game projection: ${fmt2(r.proj)}` },
+        done ? `orig. proj ${fmt2(r.proj)}` : `proj ${fmt2(projOf(r))}`)));
 }
 
 // The roster of the team clicked on a league card. Redrawn on every refresh while it's open.
