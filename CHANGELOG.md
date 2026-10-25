@@ -4,10 +4,10 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
-## Unreleased
+## 1.1.4 — 2026-10-25
 
 ### Fixed
-- **A touchdown overturned on review no longer scores on Live plays.** Sleeper sometimes updates the call on an overturned play before the stats on it, so "Catch made by J.Watkins for 23 yards. TOUCHDOWN … the play was overturned … Pass incomplete" scored Purdy +4.92. When an overturned play's stats claim a completion or a touchdown that the play itself says didn't happen, it now scores nothing — what it's worth either way. Matchup scores were never affected; they come from the box score, which had it right.
+- **A touchdown overturned on review no longer scores on Live plays.** Sleeper sometimes updates the call on an overturned play before the stats on it, so "Catch made by J.Watkins for 23 yards. TOUCHDOWN … the play was overturned … Pass incomplete" scored Purdy +4.92. When an overturned play's stats claim a completion or a touchdown that the play itself says didn't happen, it now scores nothing — what it's worth either way. Matchup scores were never affected; they come from the box score, which had it right. (#105)
 
 ## 1.1.3 — 2026-10-07
 
