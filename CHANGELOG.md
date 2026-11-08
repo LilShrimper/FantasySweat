@@ -4,10 +4,10 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
-## Unreleased
+## 1.1.6 — 2026-11-08
 
 ### Fixed
-- **"Since your last look" waits for games to be played.** Projections keep moving before kickoff, so coming back on a Saturday could bring up a bar of "+0 / +0" for every league just because a win chance shifted. It now appears only when points were actually scored while you were away.
+- **"Since your last look" waits for games to be played.** Projections keep moving before kickoff, so coming back on a Saturday could bring up a bar of "+0 / +0" for every league just because a win chance shifted. It now appears only when points were actually scored while you were away. (#109)
 
 ## 1.1.5 — 2026-10-25
 
