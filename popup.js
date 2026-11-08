@@ -2074,7 +2074,8 @@ const lookSnapshot = (data) => ({
 });
 
 // What moved between two snapshots, per league and in total. null when there's nothing worth saying:
-// no earlier look, a different week, too little time, or nothing changed.
+// no earlier look, a different week, too little time, or no points scored. A win chance that shifted
+// on its own (projections updating before kickoff) isn't news — only a game being played is.
 function lookSummary(prev, now) {
   if (!prev?.leagues || prev.week !== now.week) return null;
   const away = now.at - (prev.at || 0);
@@ -2084,7 +2085,7 @@ function lookSummary(prev, now) {
     const is = now.leagues[id];
     if (!is) continue; // a league you've since hidden
     const l = { id, me: round2(is.me - was.me), opp: round2(is.opp - was.opp), win: is.win, wasWin: was.win };
-    if (l.me || l.opp || pct(l.win) !== pct(l.wasWin)) moved.push(l);
+    if (l.me || l.opp) moved.push(l);
   }
   if (!moved.length) return null;
   // Biggest swing first: leagues score differently, so the matchups that moved most are what matter,

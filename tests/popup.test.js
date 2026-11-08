@@ -150,6 +150,10 @@ test('what changed since your last look', () => {
   assert.equal(api.lookSummary(snap(after.at - 60_000, 3, before.leagues), after), null);
   assert.equal(api.lookSummary(before, snap(before.at + 2 * hour, 3, before.leagues)), null);
 
+  // Before any game is played, projections still shift the win chances — that alone isn't worth a bar.
+  const reprojected = Object.fromEntries(Object.entries(before.leagues).map(([id, l]) => [id, { ...l, win: l.win + 0.1 }]));
+  assert.equal(api.lookSummary(before, snap(before.at + 2 * hour, 3, reprojected)), null);
+
   // A league hidden since the last look is skipped rather than counted as a change.
   const narrowed = api.lookSummary(before, snap(after.at, 3, { L1: after.leagues.L1 }));
   assert.equal(narrowed.leagues.length, 1);
