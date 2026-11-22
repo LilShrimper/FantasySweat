@@ -561,7 +561,7 @@ async function loadAll(username, weekOverride) {
     ? { league: { league_id: `espn:${c.id}`, name: espnMetaCache[c.id]?.name || `ESPN league ${c.id}`, espn: true }, skip: err }
     : espnLeagueData(d, c, week, period, dump, extraInfo)));
 
-  const model = buildModel([...leagueData, ...espnData], proj, dump, games, ranks, extraInfo);
+  const model = buildModel([...leagueData, ...espnData], proj, dump, games, ranks, extraInfo, week);
   model.weekStats = weekStats; // for the points breakdown (null if it didn't load)
   return { state, week, user, model };
 }
@@ -611,8 +611,10 @@ const srcNote = (srcs) => {
 const totalNote = (ld, s) => {
   if (ld.league.espn) return null;
   const n = [...(s.m.live || [])].filter((pid) => s.m.starters?.includes(pid)).length;
-  return n ? `Includes ${n} live starter${n === 1 ? '' : 's'} scored from Sleeper’s live stats (the Sleeper app can be a few minutes behind)`
+  const base = n ? `Includes ${n} live starter${n === 1 ? '' : 's'} scored from Sleeper’s live stats (the Sleeper app can be a few minutes behind)`
     : 'Sleeper’s matchup score';
+  const subs = s.m.autoSubbed?.length;
+  return subs ? `${base}, with the auto-sub${subs === 1 ? '' : 's'} you picked in place of the injured starter${subs === 1 ? '' : 's'}` : base;
 };
 
 // ---------- the actual "who do I cheer for" logic ----------
@@ -694,7 +696,7 @@ function normalCdf(z) {
 // Total projected fantasy points riding on a set of players (every league, both sides).
 const projStakeOf = (players) => players.reduce((s, p) => s + p.legs.reduce((t, l) => t + l.proj, 0), 0);
 
-function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
+function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}, week = null) {
   const players = new Map();
   const leagues = leagueData.map((ld, i) => {
     const defaultColor = LEAGUE_COLORS[i % LEAGUE_COLORS.length];
@@ -702,6 +704,26 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
   });
   // ESPN's scoreboard didn't load: treat games as not started, never as finished.
   const noSchedule = !Object.keys(games).length;
+
+  // Before kickoff, an injured starter you've set an auto-sub for is projected as his sub. `projM` is
+  // the lineup the projections use; `m` stays Sleeper's own until the starter's game starts. After
+  // that the sub is in `m` too, and his points replace the starter's in your score.
+  for (const ld of leagues) {
+    if (!ld.me) continue;
+    const infoOf = (pid) => playerInfo(pid, proj, dump, extraInfo);
+    const { starters, swaps } = autoSubStarters(ld, week, infoOf, (team) => (team && games[team]) || null);
+    const late = swaps.filter((sw) => sw.started);
+    if (late.length) {
+      const m = ld.me.m;
+      const pts = m.players_points || {};
+      const swapIn = new Map(late.map((sw) => [sw.out, sw.sub]));
+      const change = late.reduce((t, sw) => t + (pts[sw.sub] ?? 0) - (pts[sw.out] ?? 0), 0);
+      ld.me.m = { ...m, starters: (m.starters || []).map((pid) => swapIn.get(pid) ?? pid),
+        points: Math.round(((m.points || 0) + change) * 100) / 100, autoSubbed: late };
+    }
+    ld.me.projM = swaps.length ? { ...ld.me.m, starters } : ld.me.m;
+    ld.me.autoSubs = swaps;
+  }
 
   for (const ld of leagues) {
     if (!ld.me) continue;
@@ -718,7 +740,7 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
         pl.impact += side * Math.max(pj, 1); // weight by projection; unprojected guys still count a little
       }
     };
-    addSide(ld.me.m, +1, ld.me.projMap);
+    addSide(ld.me.projM, +1, ld.me.projMap);
     if (ld.opp) addSide(ld.opp.m, -1, ld.opp.projMap);
   }
 
@@ -780,7 +802,7 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}) {
       }
       return { current, total, open };
     };
-    const a = project(ld.me.m);
+    const a = project(ld.me.projM);
     ld.me.proj = a.total;
     if (!ld.opp) continue;
     const b = project(ld.opp.m);
@@ -968,7 +990,8 @@ function leagueCard(ld) {
     cardLines(ld),
     emptyLine(ld),
     byeLine(ld),
-    sittingLine(ld));
+    sittingLine(ld),
+    subSetLine(ld));
 }
 
 // A starting spot with nobody in it scores nothing, so say which slots are empty.
@@ -990,13 +1013,162 @@ function sittingStarters(side) {
     && r.game?.state === 'pre' && SITTING_OUT[r.info?.inj]);
 }
 
+// Sleeper leagues can allow auto-subs: you pick an "if out" backup and Sleeper swaps him in at kickoff.
+// Which backup you picked is behind Sleeper's sign-in, so all we can say is that the league allows it.
+const autoSubsAllowed = (league) => !league.espn && league.settings?.max_subs > 0;
+
+// "league_id:week:pid" of each flagged starter you've covered with an "if out" sub → the sub's pid, or
+// true when you didn't say who. Per week, so a player who's still out next week is flagged again.
+const subSetKey = (ld, r, week = current?.week) => `${ld.league.league_id}:${week}:${r.pid}`;
+
+// Record the sub for each player (a pid, true for "covered, not saying who", or false to flag him
+// again). Other weeks' entries are dropped. The projections depend on it, so it refreshes.
+function markSubsSet(ld, players, sub = true) {
+  const week = `:${current?.week}:`;
+  const next = Object.fromEntries(Object.entries(subsSet).filter(([k]) => k.includes(week)));
+  for (const r of players) {
+    if (sub) next[subSetKey(ld, r)] = sub;
+    else delete next[subSetKey(ld, r)];
+  }
+  subsSet = next;
+  subPicking = null;
+  store.set('subsSet', subsSet);
+  render();
+  refresh();
+}
+
+// The flagged starters in an auto-sub league split into the ones you've covered and the ones you haven't.
+function sittingSplit(ld) {
+  const all = sittingStarters(ld.me);
+  if (!autoSubsAllowed(ld.league)) return { out: all, covered: [] };
+  const isSet = (r) => !!subsSet[subSetKey(ld, r)];
+  return { out: all.filter((r) => !isSet(r)), covered: all.filter(isSet) };
+}
+
+const posLabel = (pos) => (pos === 'DEF' ? 'D/ST' : pos);
+const sittingNames = (list) => list.map((r) => `${r.info.name} (${posLabel(r.info.pos)} · ${SITTING_OUT[r.info.inj]})`).join(', ');
+
+// Who can fill a lineup slot. A slot we don't know takes anyone.
+const SLOT_FITS = {
+  QB: ['QB'], RB: ['RB'], WR: ['WR'], TE: ['TE'], K: ['K'], DEF: ['DEF'],
+  FLEX: ['RB', 'WR', 'TE'], 'RB/WR': ['RB', 'WR'], 'WR/TE': ['WR', 'TE'], SF: ['QB', 'RB', 'WR', 'TE'], OP: ['QB', 'RB', 'WR', 'TE'],
+};
+const fitsSlot = (slot, pos) => !SLOT_FITS[slot] || SLOT_FITS[slot].includes(pos);
+
+// Whether a bench player's game lets him be an auto-sub. He needs a game this week. Sleeper lets a sub
+// who has already played (his points just come over), unless the league turned on its start-time
+// rule (`sub_start_time_eligibility`), which we read as "his game can't have started".
+const subGameOk = (league, game) => !!game && (!league?.settings?.sub_start_time_eligibility || game.state === 'pre');
+
+// Bench players who could come in for `r`: they fit his slot and their game allows it. Best
+// projection first.
+function subCandidates(side, r, league) {
+  return (side?.roster || [])
+    .filter((b) => b.pid && b.slot === 'BN' && subGameOk(league, b.game) && fitsSlot(r.slot, b.info?.pos))
+    .sort((a, b) => (b.projLive ?? b.proj ?? 0) - (a.projLive ?? a.proj ?? 0));
+}
+
+// Ruled out for sure: Doubtful players sometimes play, so Sleeper might not sub them.
+const SURE_OUT = new Set(['Out', 'IR', 'PUP', 'Sus']);
+
+// Your starters with the auto-subs you picked swapped in, as long as the sub is on your team and his
+// game allows it:
+// - before the starter's kickoff, while he's flagged, for projecting;
+// - after it, while he's a sure out with no points. Sleeper's public lineup doesn't show its auto-subs
+//   (it still lists the starter well after kickoff), so the sub's points count here (started: true).
+//   Once Sleeper's lineup has the sub in it, there's nothing to swap.
+//   infoOf(pid) → { team, inj }, gameOf(team) → the game or null
+function autoSubStarters(ld, week, infoOf, gameOf) {
+  const starters = ld.me?.m?.starters || [];
+  const swaps = [];
+  if (!autoSubsAllowed(ld.league)) return { starters, swaps };
+  const onTeam = new Set(ld.me.m.players || []);
+  const pts = ld.me.m.players_points || {};
+  const out = starters.map((pid) => {
+    const sub = subsSet[subSetKey(ld, { pid }, week)];
+    if (typeof sub !== 'string' || !onTeam.has(sub) || starters.includes(sub)) return pid;
+    const info = infoOf(pid);
+    const game = gameOf(info?.team);
+    const subGame = gameOf(infoOf(sub)?.team);
+    if (!SITTING_OUT[info?.inj] || !game) return pid;
+    if (game.state === 'pre') {
+      if (!subGameOk(ld.league, subGame)) return pid;
+      swaps.push({ out: pid, sub });
+      return sub;
+    }
+    // After kickoff. A league that only allows subs whose game hadn't started at the starter's kickoff
+    // rules out a sub who kicked off earlier.
+    if (!SURE_OUT.has(info.inj) || (pts[pid] ?? 0) !== 0 || !subGame) return pid;
+    if (ld.league.settings?.sub_start_time_eligibility && !(subGame.date >= game.date)) return pid;
+    swaps.push({ out: pid, sub, started: true });
+    return sub;
+  });
+  return { starters: out, swaps };
+}
+
+// The card itself is a button (it filters to this league), so a control inside it keeps its clicks
+// and keys to itself.
+const keepInside = (e) => e.stopPropagation();
+const cardButton = (cls, title, text, act) => {
+  const go = (e) => { e.stopPropagation(); e.preventDefault(); act(); };
+  return h('button', { class: cls, title, onclick: go, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') go(e); } }, text);
+};
+
+// Picking who you set as each flagged starter's auto-sub on Sleeper.
+function subPicker(ld, out) {
+  return h('div', { class: 'sub-picker', onclick: keepInside, onmousedown: keepInside },
+    out.map((r) => {
+      const choices = subCandidates(ld.me, r, ld.league);
+      return h('label', { class: 'sub-pick' },
+        `Auto-sub for ${r.info.name}: `,
+        h('select', {
+          onkeydown: keepInside,
+          onchange: (e) => markSubsSet(ld, [r], e.target.value === 'set' ? true : e.target.value),
+        },
+          h('option', { value: '', selected: 'selected', disabled: 'disabled' }, 'Pick your sub…'),
+          choices.map((b) => h('option', { value: b.pid },
+            `${b.info.name} (${posLabel(b.info.pos)}${b.info.inj ? ` · ${b.info.inj}` : ''}) · ${b.game.state === 'pre' ? `proj ${fmt2(b.proj || 0)}` : `${fmt2(b.pts || 0)} pts${b.game.state === 'in' ? ' so far' : ''}`}`)),
+          h('option', { value: 'set' }, choices.length ? 'Someone else / don’t count him' : 'Set, but don’t count anyone')));
+    }),
+    cardButton('sub-undo', 'Keep the warning', 'Cancel', () => { subPicking = null; render(); }));
+}
+
 function sittingLine(ld) {
   if (ld.final) return null;
-  const out = sittingStarters(ld.me);
+  const { out } = sittingSplit(ld);
   if (!out.length) return null;
-  const names = out.map((r) => `${r.info.name} (${r.info.pos === 'DEF' ? 'D/ST' : r.info.pos} · ${SITTING_OUT[r.info.inj]})`).join(', ');
-  return h('div', { class: 'bye-warn', title: `Listed out, on IR/PUP, suspended or doubtful, and his game hasn’t kicked off. Swap him on ${ld.league.espn ? 'ESPN' : 'Sleeper'} if he sits.` },
-    `⚠ Check your lineup: ${names}`);
+  const autoSub = autoSubsAllowed(ld.league);
+  if (autoSub && subPicking === ld.league.league_id) return subPicker(ld, out);
+  const title = `Listed out, on IR/PUP, suspended or doubtful, and his game hasn’t kicked off. Swap him on ${ld.league.espn ? 'ESPN' : 'Sleeper'} if he sits.`
+    + (autoSub ? ' This league allows auto-subs: if you picked an “if out” sub on Sleeper, he’s swapped in at kickoff. Sleeper doesn’t share whether you picked one, so check it there.' : '');
+  return h('div', { class: 'bye-warn', title },
+    `⚠ Check your lineup: ${sittingNames(out)}`,
+    autoSub ? h('span', { class: 'autosub' }, ' · auto-sub allowed') : null,
+    autoSub ? cardButton('sub-set', 'Pick the “if out” sub you set on Sleeper. His projection counts in place of the injured starter’s until kickoff.',
+      out.length === 1 ? '✓ I set an auto-sub' : '✓ I set auto-subs', () => { subPicking = ld.league.league_id; render(); }) : null);
+}
+
+// What's left of a warning you covered: a quiet note naming the sub, with a way to undo it.
+function subSetLine(ld) {
+  if (ld.final) return null;
+  const started = (ld.me?.m?.autoSubbed || [])
+    .map((sw) => (ld.me.roster || []).find((b) => b.pid === sw.out)).filter((r) => r?.info);
+  const covered = [...sittingSplit(ld).covered, ...started];
+  if (!covered.length) return null;
+  const nameOf = (pid) => (ld.me.roster || []).find((b) => b.pid === pid)?.info?.name || null;
+  const parts = covered.map((r) => {
+    const sub = subsSet[subSetKey(ld, r)];
+    const who = typeof sub === 'string' ? nameOf(sub) : null;
+    const flag = `${r.info.name} (${posLabel(r.info.pos)} · ${SITTING_OUT[r.info.inj]})`;
+    return who ? `${who} for ${flag}` : flag;
+  });
+  const counted = covered.some((r) => typeof subsSet[subSetKey(ld, r)] === 'string');
+  return h('div', {
+    class: 'sub-set-line',
+    title: `You set an “if out” sub on Sleeper. Sleeper swaps him in at kickoff if the starter is inactive.${counted ? ' His projection counts in place of the starter’s, and after kickoff his points do too (Sleeper’s public lineup doesn’t show the swap).' : ''}`,
+  },
+    `✓ Auto-sub: ${parts.join(', ')}`,
+    cardButton('sub-undo', 'Show the warning again', 'Undo', () => markSubsSet(ld, covered, false)));
 }
 
 // Your starters whose NFL team has no game this week: they'll score 0, so remind you to swap them.
@@ -2184,6 +2356,8 @@ let selectedLeagues = [];  // league_ids picked on the cards (empty = all league
 let nicknames = {};        // league_id → short name shown on player tags
 let teamNicks = {};        // "league_id:team key" → team nickname shown on the league cards
 let hiddenLeagues = [];    // league_ids unchecked in Settings — left out of everything
+let subsSet = {};          // "league_id:week:pid" → sub pid (or true) — injury warnings covered by a Sleeper auto-sub
+let subPicking = null;     // league_id whose warning is showing the auto-sub picker
 let leagueColors = {};     // league_id → color picked in Settings (otherwise the default for its position)
 let espnLeagues = [];      // [{ id, teamId }] — ESPN leagues from Settings
 let espnDraft = [];        // the same list while Settings is open (saved on Save)
@@ -2914,6 +3088,8 @@ function markDevCopy() {
   nicknames = (await store.get('nicknames')) || {};
   teamNicks = (await store.get('teamNicks')) || {};
   hiddenLeagues = (await store.get('hiddenLeagues')) || [];
+  const savedSubs = await store.get('subsSet');
+  subsSet = savedSubs && typeof savedSubs === 'object' && !Array.isArray(savedSubs) ? savedSubs : {};
   leagueColors = (await store.get('leagueColors')) || {};
   espnLeagues = (await store.get('espnLeagues')) || [];
   $('#leagueChip').addEventListener('click', () => {

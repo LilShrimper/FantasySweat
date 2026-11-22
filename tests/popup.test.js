@@ -223,6 +223,117 @@ test('a starter who probably will not play is flagged, but only before kickoff',
   const only = (inj) => api.sittingStarters({ roster: [starter('X', 'RB', inj, 'pre')] }).length;
   for (const inj of ['Out', 'IR', 'PUP', 'Sus', 'Doubtful']) assert.equal(only(inj), 1, inj);
   assert.equal(only('Questionable'), 0);
+  // A Sleeper league that allows auto-subs says so, since the "if out" pick may already cover it.
+  const auto = { ...ld, league: { ...ld.league, settings: { max_subs: 2 } } };
+  const kid = (el, cls) => el?.children.find((k) => k?.className === cls) ?? null;
+  const warnText = (el) => el.children[0];
+  const line = api.sittingLine(auto);
+  assert.equal(warnText(line) + kid(line, 'autosub').textContent,
+    '⚠ Check your lineup: T. Etienne (RB · Out), J. Dart (QB · Doubtful) · auto-sub allowed');
+  assert.equal(kid(line, 'sub-set').textContent, '✓ I set auto-subs');
+  assert.match(line.title, /allows auto-subs/);
+  assert.equal(api.subSetLine(auto), null); // nothing covered yet
+  const noAuto = api.sittingLine({ ...ld, league: { ...ld.league, settings: { max_subs: 0 } } });
+  assert.equal(kid(noAuto, 'autosub'), null);
+  assert.equal(kid(noAuto, 'sub-set'), null);
+  // Saying you set an auto-sub hides that player for this week, in that league only.
+  api.setCurrent({ week: 11 });
+  api.setSubsSet({ 'L1:11:T. Etienne': true });
+  assert.equal(warnText(api.sittingLine(auto)), '⚠ Check your lineup: J. Dart (QB · Doubtful)');
+  assert.equal(kid(api.sittingLine(auto), 'sub-set').textContent, '✓ I set an auto-sub');
+  // ...and leaves a quiet note with an Undo.
+  const note = api.subSetLine(auto);
+  assert.equal(note.children[0], '✓ Auto-sub: T. Etienne (RB · Out)');
+  assert.equal(kid(note, 'sub-undo').textContent, 'Undo');
+  assert.equal(api.subSetLine({ ...auto, final: true }), null);
+  // Naming the sub puts him in the note.
+  const withBench = { ...auto, me: { roster: [...auto.me.roster, starter('G. Helm', 'BN', null, 'pre')] } };
+  api.setSubsSet({ 'L1:11:T. Etienne': 'G. Helm' });
+  assert.equal(api.subSetLine(withBench).children[0], '✓ Auto-sub: G. Helm for T. Etienne (RB · Out)');
+  api.setSubsSet({ 'L1:11:T. Etienne': true, 'L1:11:J. Dart': true });
+  assert.equal(api.sittingLine(auto), null);
+  assert.equal(api.sittingLine({ ...ld, league: league('Other', 'L2') }).textContent.startsWith('⚠ Check your lineup: T. Etienne'), true); // no auto-subs there
+  api.setCurrent({ week: 12 }); // a new week flags them again
+  assert.notEqual(api.sittingLine(auto), null);
+  assert.equal(api.subSetLine(auto), null);
+  api.setSubsSet({});
+  api.setCurrent(undefined);
+});
+
+test('the auto-sub you picked counts in place of an injured starter', () => {
+  const games = { LV: { state: 'pre' }, TEN: { state: 'pre' }, KC: { state: 'in' } };
+  const infos = { bowers: { team: 'LV', inj: 'Out' }, helm: { team: 'TEN', inj: null }, kelce: { team: 'KC', inj: null }, qb: { team: 'TEN', inj: null } };
+  const infoOf = (pid) => infos[pid];
+  const gameOf = (team) => games[team] || null;
+  const ld = {
+    league: { ...league('L&D', 'L3'), settings: { max_subs: 2 } },
+    me: { m: { starters: ['qb', 'bowers'], players: ['qb', 'bowers', 'helm', 'kelce'] } },
+  };
+  api.setSubsSet({ 'L3:11:bowers': 'helm' });
+  assert.deepEqual([...api.autoSubStarters(ld, 11, infoOf, gameOf).starters], ['qb', 'helm']);
+  assert.deepEqual({ ...api.autoSubStarters(ld, 11, infoOf, gameOf).swaps[0] }, { out: 'bowers', sub: 'helm' });
+  const same = (r) => [...r.starters].join();
+  // Not this week's pick, or no league auto-subs: Sleeper's lineup as it is.
+  assert.equal(same(api.autoSubStarters(ld, 12, infoOf, gameOf)), 'qb,bowers');
+  assert.equal(same(api.autoSubStarters({ ...ld, league: league('L&D', 'L3') }, 11, infoOf, gameOf)), 'qb,bowers');
+  // He's off the injury report: no swap.
+  infos.bowers.inj = null;
+  assert.equal(same(api.autoSubStarters(ld, 11, infoOf, gameOf)), 'qb,bowers');
+  infos.bowers.inj = 'Out';
+  // After his kickoff Sleeper's public lineup still lists him, so a sure out with no points stays swapped...
+  games.LV.state = 'in';
+  assert.equal(same(api.autoSubStarters(ld, 11, infoOf, gameOf)), 'qb,helm');
+  assert.deepEqual({ ...api.autoSubStarters(ld, 11, infoOf, gameOf).swaps[0] }, { out: 'bowers', sub: 'helm', started: true });
+  games.LV.state = 'post';
+  assert.equal(same(api.autoSubStarters(ld, 11, infoOf, gameOf)), 'qb,helm');
+  // ...but not a Doubtful one (he may have played), one who's scored, or once Sleeper has the sub in.
+  infos.bowers.inj = 'Doubtful';
+  assert.equal(same(api.autoSubStarters(ld, 11, infoOf, gameOf)), 'qb,bowers');
+  infos.bowers.inj = 'Out';
+  ld.me.m.players_points = { bowers: 4.5 };
+  assert.equal(same(api.autoSubStarters(ld, 11, infoOf, gameOf)), 'qb,bowers');
+  ld.me.m.players_points = { bowers: 0 };
+  const subbed = { ...ld, me: { m: { ...ld.me.m, starters: ['qb', 'helm'] } } };
+  assert.equal(same(api.autoSubStarters(subbed, 11, infoOf, gameOf)), 'qb,helm');
+  assert.equal(api.autoSubStarters(subbed, 11, infoOf, gameOf).swaps.length, 0);
+  // A league that only allows subs whose game hadn't started: the sub's kickoff can't be before his.
+  const strictLd = { ...ld, league: { ...ld.league, settings: { max_subs: 2, sub_start_time_eligibility: 1 } } };
+  games.LV.date = 2; games.TEN.date = 1;
+  assert.equal(same(api.autoSubStarters(strictLd, 11, infoOf, gameOf)), 'qb,bowers');
+  games.TEN.date = 2;
+  assert.equal(same(api.autoSubStarters(strictLd, 11, infoOf, gameOf)), 'qb,helm');
+  games.LV.state = 'pre';
+  // A sub who's already playing still counts (Sleeper brings his points over)...
+  api.setSubsSet({ 'L3:11:bowers': 'kelce' });
+  assert.equal(same(api.autoSubStarters(ld, 11, infoOf, gameOf)), 'qb,kelce');
+  // ...unless the league only allows subs whose game hasn't started.
+  const strict = { ...ld, league: { ...ld.league, settings: { max_subs: 2, sub_start_time_eligibility: 1 } } };
+  assert.equal(same(api.autoSubStarters(strict, 11, infoOf, gameOf)), 'qb,bowers');
+  // He's not on the team any more, or "covered, don't count anyone".
+  api.setSubsSet({ 'L3:11:bowers': 'gone' });
+  assert.equal(same(api.autoSubStarters(ld, 11, infoOf, gameOf)), 'qb,bowers');
+  api.setSubsSet({ 'L3:11:bowers': true });
+  assert.equal(same(api.autoSubStarters(ld, 11, infoOf, gameOf)), 'qb,bowers');
+  api.setSubsSet({});
+});
+
+test('auto-sub choices are bench players who fit the slot and have a game', () => {
+  const p = (pid, slot, pos, state, proj) => ({ pid, slot, proj, info: { name: pid, pos }, game: state ? { state } : null });
+  const side = { roster: [
+    p('Bowers', 'TE', 'TE', 'pre', 0),
+    p('Helm', 'BN', 'TE', 'pre', 6),
+    p('Kincaid', 'BN', 'TE', 'pre', 9),
+    p('Kelce', 'BN', 'TE', 'in', 12),  // already playing
+    p('Likely', 'BN', 'TE', null, 8),   // on bye
+    p('Smith', 'IR', 'TE', 'pre', 5),  // on IR, not the bench
+    p('Nacua', 'BN', 'WR', 'pre', 15), // can't play TE
+  ] };
+  const names = (list) => list.map((b) => b.pid).join();
+  const loose = { settings: { max_subs: 2 } };
+  const strict = { settings: { max_subs: 2, sub_start_time_eligibility: 1 } };
+  assert.equal(names(api.subCandidates(side, side.roster[0], loose)), 'Kelce,Kincaid,Helm');
+  assert.equal(names(api.subCandidates(side, side.roster[0], strict)), 'Kincaid,Helm'); // only games still to come
+  assert.equal(names(api.subCandidates(side, { slot: 'FLEX' }, strict)), 'Nacua,Kincaid,Helm');
 });
 
 test('safeAvatar only allows Sleeper and ESPN images', () => {

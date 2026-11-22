@@ -4,6 +4,11 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### Changed
+- **Auto-subs on the injury warning.** In a Sleeper league that allows auto-subs, "⚠ Check your lineup" now ends with "· auto-sub allowed". Sleeper doesn't share which "if out" sub you picked, so you can tell Fantasy Sweat: hover the warning, click **✓ I set an auto-sub** and pick him from your bench. The warning becomes a quiet "✓ Auto-sub: G. Helm for B. Bowers (TE · Out)" note with an **Undo**. Your sub's projection counts in his place, so your projected total and win chance include him. Sleeper's public lineup still lists the injured starter after kickoff, so once his game starts, as long as he's ruled Out (or on IR, PUP or suspended) and hasn't scored, your sub's points count in your score too. It lasts the week; if the starter is still flagged next week, the warning is back.
+
 ## 1.1.6 — 2026-11-08
 
 ### Fixed

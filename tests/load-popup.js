@@ -19,7 +19,7 @@ const NAMES = [
   'leagueProj', 'scorePlay', 'slimPlay', 'fixYards', 'playYards', 'returnYards', 'downSpot', 'safeAvatar', 'teamLogo', 'isNewer', 'initials',
   'sleeperWinProb', 'secondsLeft', 'statLabel', 'fmt2', 'fmtPts', 'signed', 'liveScores', 'emptyLine',
   'byeLine', 'byeStarters', 'yetToPlay', 'playingNow', 'canStillScore', 'startersIn', 'playerInfo', 'cardName', 'leagueTag',
-  'sittingLine', 'sittingStarters',
+  'sittingLine', 'sittingStarters', 'subSetLine', 'autoSubStarters', 'subCandidates',
   'lookSummary', 'lookSnapshot', 'agoText', 'sinceParts', 'sinceClass',
   'headline', 'headlinePts', 'headlineProj', 'legPtsVary', 'legProjVary', 'samePts',
   'liveProj', 'sleeperLiveProj', 'defLiveProj', 'cacheFresh',
@@ -29,6 +29,7 @@ const EXPORTS = `
 globalThis.__api = {
   setCurrent: (v) => { current = v; },
   setNicknames: (v) => { nicknames = v; },
+  setSubsSet: (v) => { subsSet = v; },
 };
 ${NAMES.map((n) => `try { globalThis.__api.${n} = ${n}; } catch { /* not in this copy */ }`).join('\n')}`;
 
