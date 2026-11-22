@@ -611,8 +611,10 @@ const srcNote = (srcs) => {
 const totalNote = (ld, s) => {
   if (ld.league.espn) return null;
   const n = [...(s.m.live || [])].filter((pid) => s.m.starters?.includes(pid)).length;
-  return n ? `Includes ${n} live starter${n === 1 ? '' : 's'} scored from Sleeper’s live stats (the Sleeper app can be a few minutes behind)`
+  const base = n ? `Includes ${n} live starter${n === 1 ? '' : 's'} scored from Sleeper’s live stats (the Sleeper app can be a few minutes behind)`
     : 'Sleeper’s matchup score';
+  const subs = s.m.autoSubbed?.length;
+  return subs ? `${base}, with the auto-sub${subs === 1 ? '' : 's'} you picked in place of the injured starter${subs === 1 ? '' : 's'}` : base;
 };
 
 // ---------- the actual "who do I cheer for" logic ----------
@@ -704,11 +706,21 @@ function buildModel(leagueData, proj, dump, games, ranks, extraInfo = {}, week =
   const noSchedule = !Object.keys(games).length;
 
   // Before kickoff, an injured starter you've set an auto-sub for is projected as his sub. `projM` is
-  // the lineup the projections use; `m` stays Sleeper's own.
+  // the lineup the projections use; `m` stays Sleeper's own until the starter's game starts. After
+  // that the sub is in `m` too, and his points replace the starter's in your score.
   for (const ld of leagues) {
     if (!ld.me) continue;
     const infoOf = (pid) => playerInfo(pid, proj, dump, extraInfo);
     const { starters, swaps } = autoSubStarters(ld, week, infoOf, (team) => (team && games[team]) || null);
+    const late = swaps.filter((sw) => sw.started);
+    if (late.length) {
+      const m = ld.me.m;
+      const pts = m.players_points || {};
+      const swapIn = new Map(late.map((sw) => [sw.out, sw.sub]));
+      const change = late.reduce((t, sw) => t + (pts[sw.sub] ?? 0) - (pts[sw.out] ?? 0), 0);
+      ld.me.m = { ...m, starters: (m.starters || []).map((pid) => swapIn.get(pid) ?? pid),
+        points: Math.round(((m.points || 0) + change) * 100) / 100, autoSubbed: late };
+    }
     ld.me.projM = swaps.length ? { ...ld.me.m, starters } : ld.me.m;
     ld.me.autoSubs = swaps;
   }
@@ -1056,22 +1068,39 @@ function subCandidates(side, r, league) {
     .sort((a, b) => (b.projLive ?? b.proj ?? 0) - (a.projLive ?? a.proj ?? 0));
 }
 
-// Your starters with the auto-subs you picked swapped in, for projecting: only while the starter is
-// still flagged and his game hasn't kicked off, and only if the sub is on your team and his game
-// allows it. Once the starter's game starts Sleeper has made the call, and its lineup is the one to go by.
+// Ruled out for sure: Doubtful players sometimes play, so Sleeper might not sub them.
+const SURE_OUT = new Set(['Out', 'IR', 'PUP', 'Sus']);
+
+// Your starters with the auto-subs you picked swapped in, as long as the sub is on your team and his
+// game allows it:
+// - before the starter's kickoff, while he's flagged, for projecting;
+// - after it, while he's a sure out with no points. Sleeper's public lineup doesn't show its auto-subs
+//   (it still lists the starter well after kickoff), so the sub's points count here (started: true).
+//   Once Sleeper's lineup has the sub in it, there's nothing to swap.
 //   infoOf(pid) → { team, inj }, gameOf(team) → the game or null
 function autoSubStarters(ld, week, infoOf, gameOf) {
   const starters = ld.me?.m?.starters || [];
   const swaps = [];
   if (!autoSubsAllowed(ld.league)) return { starters, swaps };
   const onTeam = new Set(ld.me.m.players || []);
+  const pts = ld.me.m.players_points || {};
   const out = starters.map((pid) => {
     const sub = subsSet[subSetKey(ld, { pid }, week)];
     if (typeof sub !== 'string' || !onTeam.has(sub) || starters.includes(sub)) return pid;
     const info = infoOf(pid);
-    if (!SITTING_OUT[info?.inj] || gameOf(info.team)?.state !== 'pre') return pid;
-    if (!subGameOk(ld.league, gameOf(infoOf(sub)?.team))) return pid;
-    swaps.push({ out: pid, sub });
+    const game = gameOf(info?.team);
+    const subGame = gameOf(infoOf(sub)?.team);
+    if (!SITTING_OUT[info?.inj] || !game) return pid;
+    if (game.state === 'pre') {
+      if (!subGameOk(ld.league, subGame)) return pid;
+      swaps.push({ out: pid, sub });
+      return sub;
+    }
+    // After kickoff. A league that only allows subs whose game hadn't started at the starter's kickoff
+    // rules out a sub who kicked off earlier.
+    if (!SURE_OUT.has(info.inj) || (pts[pid] ?? 0) !== 0 || !subGame) return pid;
+    if (ld.league.settings?.sub_start_time_eligibility && !(subGame.date >= game.date)) return pid;
+    swaps.push({ out: pid, sub, started: true });
     return sub;
   });
   return { starters: out, swaps };
@@ -1122,7 +1151,9 @@ function sittingLine(ld) {
 // What's left of a warning you covered: a quiet note naming the sub, with a way to undo it.
 function subSetLine(ld) {
   if (ld.final) return null;
-  const { covered } = sittingSplit(ld);
+  const started = (ld.me?.m?.autoSubbed || [])
+    .map((sw) => (ld.me.roster || []).find((b) => b.pid === sw.out)).filter((r) => r?.info);
+  const covered = [...sittingSplit(ld).covered, ...started];
   if (!covered.length) return null;
   const nameOf = (pid) => (ld.me.roster || []).find((b) => b.pid === pid)?.info?.name || null;
   const parts = covered.map((r) => {
@@ -1134,7 +1165,7 @@ function subSetLine(ld) {
   const counted = covered.some((r) => typeof subsSet[subSetKey(ld, r)] === 'string');
   return h('div', {
     class: 'sub-set-line',
-    title: `You set an “if out” sub on Sleeper. Sleeper swaps him in at kickoff if the starter is inactive.${counted ? ' Until then his projection counts in place of the starter’s.' : ''}`,
+    title: `You set an “if out” sub on Sleeper. Sleeper swaps him in at kickoff if the starter is inactive.${counted ? ' His projection counts in place of the starter’s, and after kickoff his points do too (Sleeper’s public lineup doesn’t show the swap).' : ''}`,
   },
     `✓ Auto-sub: ${parts.join(', ')}`,
     cardButton('sub-undo', 'Show the warning again', 'Undo', () => markSubsSet(ld, covered, false)));

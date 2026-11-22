@@ -260,7 +260,7 @@ test('a starter who probably will not play is flagged, but only before kickoff',
   api.setCurrent(undefined);
 });
 
-test('the auto-sub you picked is projected in place of an injured starter until kickoff', () => {
+test('the auto-sub you picked counts in place of an injured starter', () => {
   const games = { LV: { state: 'pre' }, TEN: { state: 'pre' }, KC: { state: 'in' } };
   const infos = { bowers: { team: 'LV', inj: 'Out' }, helm: { team: 'TEN', inj: null }, kelce: { team: 'KC', inj: null }, qb: { team: 'TEN', inj: null } };
   const infoOf = (pid) => infos[pid];
@@ -276,12 +276,32 @@ test('the auto-sub you picked is projected in place of an injured starter until 
   // Not this week's pick, or no league auto-subs: Sleeper's lineup as it is.
   assert.equal(same(api.autoSubStarters(ld, 12, infoOf, gameOf)), 'qb,bowers');
   assert.equal(same(api.autoSubStarters({ ...ld, league: league('L&D', 'L3') }, 11, infoOf, gameOf)), 'qb,bowers');
-  // He's off the injury report, or his game has started (Sleeper made the call): no swap.
+  // He's off the injury report: no swap.
   infos.bowers.inj = null;
   assert.equal(same(api.autoSubStarters(ld, 11, infoOf, gameOf)), 'qb,bowers');
   infos.bowers.inj = 'Out';
+  // After his kickoff Sleeper's public lineup still lists him, so a sure out with no points stays swapped...
   games.LV.state = 'in';
+  assert.equal(same(api.autoSubStarters(ld, 11, infoOf, gameOf)), 'qb,helm');
+  assert.deepEqual({ ...api.autoSubStarters(ld, 11, infoOf, gameOf).swaps[0] }, { out: 'bowers', sub: 'helm', started: true });
+  games.LV.state = 'post';
+  assert.equal(same(api.autoSubStarters(ld, 11, infoOf, gameOf)), 'qb,helm');
+  // ...but not a Doubtful one (he may have played), one who's scored, or once Sleeper has the sub in.
+  infos.bowers.inj = 'Doubtful';
   assert.equal(same(api.autoSubStarters(ld, 11, infoOf, gameOf)), 'qb,bowers');
+  infos.bowers.inj = 'Out';
+  ld.me.m.players_points = { bowers: 4.5 };
+  assert.equal(same(api.autoSubStarters(ld, 11, infoOf, gameOf)), 'qb,bowers');
+  ld.me.m.players_points = { bowers: 0 };
+  const subbed = { ...ld, me: { m: { ...ld.me.m, starters: ['qb', 'helm'] } } };
+  assert.equal(same(api.autoSubStarters(subbed, 11, infoOf, gameOf)), 'qb,helm');
+  assert.equal(api.autoSubStarters(subbed, 11, infoOf, gameOf).swaps.length, 0);
+  // A league that only allows subs whose game hadn't started: the sub's kickoff can't be before his.
+  const strictLd = { ...ld, league: { ...ld.league, settings: { max_subs: 2, sub_start_time_eligibility: 1 } } };
+  games.LV.date = 2; games.TEN.date = 1;
+  assert.equal(same(api.autoSubStarters(strictLd, 11, infoOf, gameOf)), 'qb,bowers');
+  games.TEN.date = 2;
+  assert.equal(same(api.autoSubStarters(strictLd, 11, infoOf, gameOf)), 'qb,helm');
   games.LV.state = 'pre';
   // A sub who's already playing still counts (Sleeper brings his points over)...
   api.setSubsSet({ 'L3:11:bowers': 'kelce' });
