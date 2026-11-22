@@ -442,7 +442,7 @@ body.win { width: auto; }
 .lp-col.boo h4 { color: var(--boo); }
 .lp { padding: 6px 0; }
 .lp + .lp { border-top: 1px dashed var(--line); }
-.lp-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.lp-row { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
 .lp-pts { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 36px; }
 .lp-pts.good { color: var(--cheer); }
 .lp-pts.bad { color: var(--boo); }
