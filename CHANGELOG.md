@@ -7,7 +7,7 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 ## Unreleased
 
 ### Changed
-- **The injury warning notes auto-subs.** In a Sleeper league that allows auto-subs, "⚠ Check your lineup" now ends with "· auto-sub allowed": if you picked an "if out" sub on Sleeper, he's swapped in at kickoff. Sleeper doesn't share whether you picked one, so the warning stays as a reminder to check. Hover it and click **✓ I set an auto-sub** to swap it for a quiet "✓ Auto-sub set" note with an **Undo**. It lasts the week; if he's still flagged next week, the warning is back.
+- **Auto-subs on the injury warning.** In a Sleeper league that allows auto-subs, "⚠ Check your lineup" now ends with "· auto-sub allowed". Sleeper doesn't share which "if out" sub you picked, so you can tell Fantasy Sweat: hover the warning, click **✓ I set an auto-sub** and pick him from your bench. The warning becomes a quiet "✓ Auto-sub: G. Helm for B. Bowers (TE · Out)" note with an **Undo**. Until the starter's game kicks off, your sub's projection counts in his place, so your projected total and win chance include him. It lasts the week; if the starter is still flagged next week, the warning is back.
 
 ## 1.1.6 — 2026-11-08
 
