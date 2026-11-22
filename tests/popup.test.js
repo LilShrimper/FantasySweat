@@ -229,9 +229,10 @@ test('a starter who probably will not play is flagged, but only before kickoff',
   const warnText = (el) => el.children[0];
   const line = api.sittingLine(auto);
   assert.equal(warnText(line) + kid(line, 'autosub').textContent,
-    '⚠ Check your lineup: T. Etienne (RB · Out), J. Dart (QB · Doubtful) · auto-sub on');
+    '⚠ Check your lineup: T. Etienne (RB · Out), J. Dart (QB · Doubtful) · auto-sub allowed');
   assert.equal(kid(line, 'sub-set').textContent, '✓ I set auto-subs');
-  assert.match(line.title, /auto-subs on/);
+  assert.match(line.title, /allows auto-subs/);
+  assert.equal(api.subSetLine(auto), null); // nothing covered yet
   const noAuto = api.sittingLine({ ...ld, league: { ...ld.league, settings: { max_subs: 0 } } });
   assert.equal(kid(noAuto, 'autosub'), null);
   assert.equal(kid(noAuto, 'sub-set'), null);
@@ -240,11 +241,17 @@ test('a starter who probably will not play is flagged, but only before kickoff',
   api.setSubsSet(['L1:11:T. Etienne']);
   assert.equal(warnText(api.sittingLine(auto)), '⚠ Check your lineup: J. Dart (QB · Doubtful)');
   assert.equal(kid(api.sittingLine(auto), 'sub-set').textContent, '✓ I set an auto-sub');
+  // ...and leaves a quiet note with an Undo.
+  const note = api.subSetLine(auto);
+  assert.equal(note.children[0], '✓ Auto-sub set: T. Etienne (RB · Out)');
+  assert.equal(kid(note, 'sub-undo').textContent, 'Undo');
+  assert.equal(api.subSetLine({ ...auto, final: true }), null);
   api.setSubsSet(['L1:11:T. Etienne', 'L1:11:J. Dart']);
   assert.equal(api.sittingLine(auto), null);
   assert.equal(api.sittingLine({ ...ld, league: league('Other', 'L2') }).textContent.startsWith('⚠ Check your lineup: T. Etienne'), true); // no auto-subs there
   api.setCurrent({ week: 12 }); // a new week flags them again
   assert.notEqual(api.sittingLine(auto), null);
+  assert.equal(api.subSetLine(auto), null);
   api.setSubsSet([]);
   api.setCurrent(undefined);
 });

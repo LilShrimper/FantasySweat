@@ -968,7 +968,8 @@ function leagueCard(ld) {
     cardLines(ld),
     emptyLine(ld),
     byeLine(ld),
-    sittingLine(ld));
+    sittingLine(ld),
+    subSetLine(ld));
 }
 
 // A starting spot with nobody in it scores nothing, so say which slots are empty.
@@ -992,38 +993,60 @@ function sittingStarters(side) {
 
 // Sleeper leagues can allow auto-subs: you pick an "if out" backup and Sleeper swaps him in at kickoff.
 // Which backup you picked is behind Sleeper's sign-in, so all we can say is that the league allows it.
-const autoSubsOn = (league) => !league.espn && league.settings?.max_subs > 0;
+const autoSubsAllowed = (league) => !league.espn && league.settings?.max_subs > 0;
 
 // "league_id:week:pid" for each flagged starter you've said is covered by an "if out" sub. Per week,
 // so a player who's still out next week is flagged again.
 const subSetKey = (ld, r) => `${ld.league.league_id}:${current?.week}:${r.pid}`;
 
-function markSubsSet(ld, players) {
+// Mark players covered (or, with covered = false, flag them again). Other weeks' marks are dropped.
+function markSubsSet(ld, players, covered = true) {
   const week = `:${current?.week}:`;
-  subsSet = [...new Set([...subsSet.filter((k) => k.includes(week)), ...players.map((r) => subSetKey(ld, r))])];
+  const keys = players.map((r) => subSetKey(ld, r));
+  subsSet = [...new Set([...subsSet.filter((k) => k.includes(week) && !keys.includes(k)), ...(covered ? keys : [])])];
   store.set('subsSet', subsSet);
   render();
 }
 
+// The flagged starters in an auto-sub league split into the ones you've covered and the ones you haven't.
+function sittingSplit(ld) {
+  const all = sittingStarters(ld.me);
+  if (!autoSubsAllowed(ld.league)) return { out: all, covered: [] };
+  const isSet = (r) => subsSet.includes(subSetKey(ld, r));
+  return { out: all.filter((r) => !isSet(r)), covered: all.filter(isSet) };
+}
+
+const sittingNames = (list) => list.map((r) => `${r.info.name} (${r.info.pos === 'DEF' ? 'D/ST' : r.info.pos} · ${SITTING_OUT[r.info.inj]})`).join(', ');
+
+// The card itself is a button (it filters to this league), so a button inside it keeps its clicks
+// and keys to itself.
+const cardButton = (cls, title, text, act) => {
+  const go = (e) => { e.stopPropagation(); e.preventDefault(); act(); };
+  return h('button', { class: cls, title, onclick: go, onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') go(e); } }, text);
+};
+
 function sittingLine(ld) {
   if (ld.final) return null;
-  const autoSub = autoSubsOn(ld.league);
-  const out = sittingStarters(ld.me).filter((r) => !autoSub || !subsSet.includes(subSetKey(ld, r)));
+  const { out } = sittingSplit(ld);
   if (!out.length) return null;
-  const names = out.map((r) => `${r.info.name} (${r.info.pos === 'DEF' ? 'D/ST' : r.info.pos} · ${SITTING_OUT[r.info.inj]})`).join(', ');
+  const autoSub = autoSubsAllowed(ld.league);
   const title = `Listed out, on IR/PUP, suspended or doubtful, and his game hasn’t kicked off. Swap him on ${ld.league.espn ? 'ESPN' : 'Sleeper'} if he sits.`
-    + (autoSub ? ' This league has auto-subs on: if you picked an “if out” sub on Sleeper, he’s swapped in at kickoff. Sleeper doesn’t share which sub you picked, so check it there.' : '');
-  // The card itself is a button (it filters to this league), so keep clicks and keys on this one.
-  const done = (e) => { e.stopPropagation(); e.preventDefault(); markSubsSet(ld, out); };
+    + (autoSub ? ' This league allows auto-subs: if you picked an “if out” sub on Sleeper, he’s swapped in at kickoff. Sleeper doesn’t share whether you picked one, so check it there.' : '');
   return h('div', { class: 'bye-warn', title },
-    `⚠ Check your lineup: ${names}`,
-    autoSub ? h('span', { class: 'autosub' }, ' · auto-sub on') : null,
-    autoSub ? h('button', {
-      class: 'sub-set',
-      title: `Hide this warning for week ${current?.week ?? ''}: you picked an “if out” sub on Sleeper.`,
-      onclick: done,
-      onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') done(e); },
-    }, out.length === 1 ? '✓ I set an auto-sub' : '✓ I set auto-subs') : null);
+    `⚠ Check your lineup: ${sittingNames(out)}`,
+    autoSub ? h('span', { class: 'autosub' }, ' · auto-sub allowed') : null,
+    autoSub ? cardButton('sub-set', `Hide this warning for week ${current?.week ?? ''}: you picked an “if out” sub on Sleeper.`,
+      out.length === 1 ? '✓ I set an auto-sub' : '✓ I set auto-subs', () => markSubsSet(ld, out)) : null);
+}
+
+// What's left of a warning you hid: a quiet note, so you still see who's out, with a way to undo it.
+function subSetLine(ld) {
+  if (ld.final) return null;
+  const { covered } = sittingSplit(ld);
+  if (!covered.length) return null;
+  return h('div', { class: 'sub-set-line', title: 'You said an “if out” sub on Sleeper covers this. Sleeper swaps him in at kickoff if he’s inactive.' },
+    `✓ Auto-sub set: ${sittingNames(covered)}`,
+    cardButton('sub-undo', 'Show the warning again', 'Undo', () => markSubsSet(ld, covered, false)));
 }
 
 // Your starters whose NFL team has no game this week: they'll score 0, so remind you to swap them.

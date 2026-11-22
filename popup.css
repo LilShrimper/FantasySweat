@@ -224,6 +224,9 @@ body.full .leagues { grid-template-columns: repeat(auto-fill, minmax(min(290px, 
 .bye-warn .sub-set { display: none; margin-left: 6px; padding: 0 6px; border: 1px solid var(--muted); border-radius: 4px; background: none; font-size: 10px; font-weight: 600; color: var(--text); cursor: pointer; }
 .bye-warn:hover .sub-set, .bye-warn:focus-within .sub-set { display: inline-block; }
 .bye-warn .sub-set:hover, .bye-warn .sub-set:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+.sub-set-line { margin-top: 4px; font-size: 11px; color: var(--muted); }
+.sub-set-line .sub-undo { margin-left: 6px; padding: 0; border: 0; background: none; font-size: 11px; color: var(--muted); text-decoration: underline; cursor: pointer; }
+.sub-set-line .sub-undo:hover, .sub-set-line .sub-undo:focus-visible { color: var(--accent); outline: none; }
 /* A lead that just turned over, on the card it happened in. */
 .lead-flip { margin-top: 4px; font-size: 11px; font-weight: 700; }
 .lead-flip.good { color: var(--cheer); }
