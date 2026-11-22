@@ -223,6 +223,11 @@ test('a starter who probably will not play is flagged, but only before kickoff',
   const only = (inj) => api.sittingStarters({ roster: [starter('X', 'RB', inj, 'pre')] }).length;
   for (const inj of ['Out', 'IR', 'PUP', 'Sus', 'Doubtful']) assert.equal(only(inj), 1, inj);
   assert.equal(only('Questionable'), 0);
+  // A Sleeper league that allows auto-subs says so, since the "if out" pick may already cover it.
+  const auto = { ...ld, league: { ...ld.league, settings: { max_subs: 2 } } };
+  assert.equal(api.sittingLine(auto).textContent, '⚠ Check your lineup: T. Etienne (RB · Out), J. Dart (QB · Doubtful) · auto-sub on');
+  assert.match(api.sittingLine(auto).title, /auto-subs on/);
+  assert.equal(api.sittingLine({ ...ld, league: { ...ld.league, settings: { max_subs: 0 } } }).textContent.includes('auto-sub'), false);
 });
 
 test('safeAvatar only allows Sleeper and ESPN images', () => {

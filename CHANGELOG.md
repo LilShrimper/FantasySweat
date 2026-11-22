@@ -4,6 +4,11 @@ What changed in each version of Fantasy Sweat on the Chrome Web Store, newest fi
 
 When the version in `manifest.json` goes up, rename **Unreleased** to that version and date in the same pull request; the publish workflow copies that section into the version's GitHub Release.
 
+## Unreleased
+
+### Changed
+- **The injury warning notes auto-subs.** In a Sleeper league that allows auto-subs, "⚠ Check your lineup" now ends with "· auto-sub on": if you picked an "if out" sub on Sleeper, he's swapped in at kickoff. Sleeper doesn't share which sub you picked, so the warning stays as a reminder to check.
+
 ## 1.1.6 — 2026-11-08
 
 ### Fixed

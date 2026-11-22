@@ -990,13 +990,21 @@ function sittingStarters(side) {
     && r.game?.state === 'pre' && SITTING_OUT[r.info?.inj]);
 }
 
+// Sleeper leagues can allow auto-subs: you pick an "if out" backup and Sleeper swaps him in at kickoff.
+// Which backup you picked is behind Sleeper's sign-in, so all we can say is that the league allows it.
+const autoSubsOn = (league) => !league.espn && league.settings?.max_subs > 0;
+
 function sittingLine(ld) {
   if (ld.final) return null;
   const out = sittingStarters(ld.me);
   if (!out.length) return null;
   const names = out.map((r) => `${r.info.name} (${r.info.pos === 'DEF' ? 'D/ST' : r.info.pos} · ${SITTING_OUT[r.info.inj]})`).join(', ');
-  return h('div', { class: 'bye-warn', title: `Listed out, on IR/PUP, suspended or doubtful, and his game hasn’t kicked off. Swap him on ${ld.league.espn ? 'ESPN' : 'Sleeper'} if he sits.` },
-    `⚠ Check your lineup: ${names}`);
+  const autoSub = autoSubsOn(ld.league);
+  const title = `Listed out, on IR/PUP, suspended or doubtful, and his game hasn’t kicked off. Swap him on ${ld.league.espn ? 'ESPN' : 'Sleeper'} if he sits.`
+    + (autoSub ? ' This league has auto-subs on: if you picked an “if out” sub on Sleeper, he’s swapped in at kickoff. Sleeper doesn’t share which sub you picked, so check it there.' : '');
+  return h('div', { class: 'bye-warn', title },
+    `⚠ Check your lineup: ${names}`,
+    autoSub ? h('span', { class: 'autosub' }, ' · auto-sub on') : null);
 }
 
 // Your starters whose NFL team has no game this week: they'll score 0, so remind you to swap them.
