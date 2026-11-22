@@ -994,17 +994,36 @@ function sittingStarters(side) {
 // Which backup you picked is behind Sleeper's sign-in, so all we can say is that the league allows it.
 const autoSubsOn = (league) => !league.espn && league.settings?.max_subs > 0;
 
+// "league_id:week:pid" for each flagged starter you've said is covered by an "if out" sub. Per week,
+// so a player who's still out next week is flagged again.
+const subSetKey = (ld, r) => `${ld.league.league_id}:${current?.week}:${r.pid}`;
+
+function markSubsSet(ld, players) {
+  const week = `:${current?.week}:`;
+  subsSet = [...new Set([...subsSet.filter((k) => k.includes(week)), ...players.map((r) => subSetKey(ld, r))])];
+  store.set('subsSet', subsSet);
+  render();
+}
+
 function sittingLine(ld) {
   if (ld.final) return null;
-  const out = sittingStarters(ld.me);
+  const autoSub = autoSubsOn(ld.league);
+  const out = sittingStarters(ld.me).filter((r) => !autoSub || !subsSet.includes(subSetKey(ld, r)));
   if (!out.length) return null;
   const names = out.map((r) => `${r.info.name} (${r.info.pos === 'DEF' ? 'D/ST' : r.info.pos} · ${SITTING_OUT[r.info.inj]})`).join(', ');
-  const autoSub = autoSubsOn(ld.league);
   const title = `Listed out, on IR/PUP, suspended or doubtful, and his game hasn’t kicked off. Swap him on ${ld.league.espn ? 'ESPN' : 'Sleeper'} if he sits.`
     + (autoSub ? ' This league has auto-subs on: if you picked an “if out” sub on Sleeper, he’s swapped in at kickoff. Sleeper doesn’t share which sub you picked, so check it there.' : '');
+  // The card itself is a button (it filters to this league), so keep clicks and keys on this one.
+  const done = (e) => { e.stopPropagation(); e.preventDefault(); markSubsSet(ld, out); };
   return h('div', { class: 'bye-warn', title },
     `⚠ Check your lineup: ${names}`,
-    autoSub ? h('span', { class: 'autosub' }, ' · auto-sub on') : null);
+    autoSub ? h('span', { class: 'autosub' }, ' · auto-sub on') : null,
+    autoSub ? h('button', {
+      class: 'sub-set',
+      title: `Hide this warning for week ${current?.week ?? ''}: you picked an “if out” sub on Sleeper.`,
+      onclick: done,
+      onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') done(e); },
+    }, out.length === 1 ? '✓ I set an auto-sub' : '✓ I set auto-subs') : null);
 }
 
 // Your starters whose NFL team has no game this week: they'll score 0, so remind you to swap them.
@@ -2192,6 +2211,7 @@ let selectedLeagues = [];  // league_ids picked on the cards (empty = all league
 let nicknames = {};        // league_id → short name shown on player tags
 let teamNicks = {};        // "league_id:team key" → team nickname shown on the league cards
 let hiddenLeagues = [];    // league_ids unchecked in Settings — left out of everything
+let subsSet = [];          // "league_id:week:pid" — injury warnings you've covered with a Sleeper auto-sub
 let leagueColors = {};     // league_id → color picked in Settings (otherwise the default for its position)
 let espnLeagues = [];      // [{ id, teamId }] — ESPN leagues from Settings
 let espnDraft = [];        // the same list while Settings is open (saved on Save)
@@ -2922,6 +2942,7 @@ function markDevCopy() {
   nicknames = (await store.get('nicknames')) || {};
   teamNicks = (await store.get('teamNicks')) || {};
   hiddenLeagues = (await store.get('hiddenLeagues')) || [];
+  subsSet = (await store.get('subsSet')) || [];
   leagueColors = (await store.get('leagueColors')) || {};
   espnLeagues = (await store.get('espnLeagues')) || [];
   $('#leagueChip').addEventListener('click', () => {

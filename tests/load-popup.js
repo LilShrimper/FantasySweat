@@ -29,6 +29,7 @@ const EXPORTS = `
 globalThis.__api = {
   setCurrent: (v) => { current = v; },
   setNicknames: (v) => { nicknames = v; },
+  setSubsSet: (v) => { subsSet = v; },
 };
 ${NAMES.map((n) => `try { globalThis.__api.${n} = ${n}; } catch { /* not in this copy */ }`).join('\n')}`;
 

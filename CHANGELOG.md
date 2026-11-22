@@ -7,7 +7,7 @@ When the version in `manifest.json` goes up, rename **Unreleased** to that versi
 ## Unreleased
 
 ### Changed
-- **The injury warning notes auto-subs.** In a Sleeper league that allows auto-subs, "⚠ Check your lineup" now ends with "· auto-sub on": if you picked an "if out" sub on Sleeper, he's swapped in at kickoff. Sleeper doesn't share which sub you picked, so the warning stays as a reminder to check.
+- **The injury warning notes auto-subs.** In a Sleeper league that allows auto-subs, "⚠ Check your lineup" now ends with "· auto-sub on": if you picked an "if out" sub on Sleeper, he's swapped in at kickoff. Sleeper doesn't share which sub you picked, so the warning stays as a reminder to check. Hover it and click **✓ I set an auto-sub** to hide it for the rest of the week; it comes back if he's still flagged next week.
 
 ## 1.1.6 — 2026-11-08
 

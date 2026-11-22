@@ -225,9 +225,28 @@ test('a starter who probably will not play is flagged, but only before kickoff',
   assert.equal(only('Questionable'), 0);
   // A Sleeper league that allows auto-subs says so, since the "if out" pick may already cover it.
   const auto = { ...ld, league: { ...ld.league, settings: { max_subs: 2 } } };
-  assert.equal(api.sittingLine(auto).textContent, '⚠ Check your lineup: T. Etienne (RB · Out), J. Dart (QB · Doubtful) · auto-sub on');
-  assert.match(api.sittingLine(auto).title, /auto-subs on/);
-  assert.equal(api.sittingLine({ ...ld, league: { ...ld.league, settings: { max_subs: 0 } } }).textContent.includes('auto-sub'), false);
+  const kid = (el, cls) => el?.children.find((k) => k?.className === cls) ?? null;
+  const warnText = (el) => el.children[0];
+  const line = api.sittingLine(auto);
+  assert.equal(warnText(line) + kid(line, 'autosub').textContent,
+    '⚠ Check your lineup: T. Etienne (RB · Out), J. Dart (QB · Doubtful) · auto-sub on');
+  assert.equal(kid(line, 'sub-set').textContent, '✓ I set auto-subs');
+  assert.match(line.title, /auto-subs on/);
+  const noAuto = api.sittingLine({ ...ld, league: { ...ld.league, settings: { max_subs: 0 } } });
+  assert.equal(kid(noAuto, 'autosub'), null);
+  assert.equal(kid(noAuto, 'sub-set'), null);
+  // Saying you set an auto-sub hides that player for this week, in that league only.
+  api.setCurrent({ week: 11 });
+  api.setSubsSet(['L1:11:T. Etienne']);
+  assert.equal(warnText(api.sittingLine(auto)), '⚠ Check your lineup: J. Dart (QB · Doubtful)');
+  assert.equal(kid(api.sittingLine(auto), 'sub-set').textContent, '✓ I set an auto-sub');
+  api.setSubsSet(['L1:11:T. Etienne', 'L1:11:J. Dart']);
+  assert.equal(api.sittingLine(auto), null);
+  assert.equal(api.sittingLine({ ...ld, league: league('Other', 'L2') }).textContent.startsWith('⚠ Check your lineup: T. Etienne'), true); // no auto-subs there
+  api.setCurrent({ week: 12 }); // a new week flags them again
+  assert.notEqual(api.sittingLine(auto), null);
+  api.setSubsSet([]);
+  api.setCurrent(undefined);
 });
 
 test('safeAvatar only allows Sleeper and ESPN images', () => {
